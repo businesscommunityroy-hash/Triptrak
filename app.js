@@ -3,6 +3,7 @@ const GOOGLE_CLIENT_ID = '730162655718-e46iif24nubvtastkkhfhc5l5ostq1n8.apps.goo
 const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/calendar',
   'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/userinfo.profile',
   'https://www.googleapis.com/auth/userinfo.email',
 ].join(' ');
@@ -14,13 +15,19 @@ const state = {
   activeTrip: null,
   expenses: [],
   categories: [
-    { id: 1, name: '🍽️ Comida', active: true },
-    { id: 2, name: '🏨 Hotel', active: true },
-    { id: 3, name: '✈️ Vuelo', active: true },
-    { id: 4, name: '⛽ Combustible', active: true },
-    { id: 5, name: '🚕 Transporte', active: true },
-    { id: 6, name: '🎭 Entretenimiento', active: true },
-    { id: 7, name: '📦 Otro', active: true },
+    { id: 1, name: '🍽️ Desayuno', active: true },
+    { id: 2, name: '🍽️ Comida', active: true },
+    { id: 3, name: '🍽️ Cena', active: true },
+    { id: 4, name: '🤝 Cena con cliente', active: true },
+    { id: 5, name: '🏨 Hotel', active: true },
+    { id: 6, name: '✈️ Vuelo', active: true },
+    { id: 7, name: '🧳 Maletas / Equipaje', active: true },
+    { id: 8, name: '🚕 Taxi / Uber', active: true },
+    { id: 9, name: '🚗 Renta de auto', active: true },
+    { id: 10, name: '⛽ Combustible', active: true },
+    { id: 11, name: '🅿️ Estacionamiento', active: true },
+    { id: 12, name: '🚌 Transporte público', active: true },
+    { id: 13, name: '📦 Otro', active: true },
   ],
   pendingImage: null,
   selectedCategory: null,
@@ -145,8 +152,20 @@ function bindEvents() {
   });
  
   // HOME → CAPTURE
-  document.getElementById('btn-capture').addEventListener('click', () => showScreen('capture'));
-  document.getElementById('btn-capture-2').addEventListener('click', () => showScreen('capture'));
+  document.getElementById('btn-capture').addEventListener('click', () => {
+    showScreen('capture');
+    const el = document.getElementById('capture-trip-label');
+    if (el) el.textContent = state.activeTrip 
+      ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
+      : 'Tomá una foto o subí desde tu galería.';
+  });
+  document.getElementById('btn-capture-2').addEventListener('click', () => {
+    showScreen('capture');
+    const el = document.getElementById('capture-trip-label');
+    if (el) el.textContent = state.activeTrip 
+      ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
+      : 'Tomá una foto o subí desde tu galería.';
+  });
  
   // HOME → ANALYZE
   document.getElementById('btn-analyze').addEventListener('click', () => {
@@ -273,7 +292,9 @@ document.getElementById('btn-manual').addEventListener('click', () => {
     document.getElementById('manual-amount').value = '';
     document.getElementById('manual-currency').value = 'USD';
     document.getElementById('manual-description').value = '';
-    document.getElementById('manual-screen-title').textContent = `Gasto manual — ${state.activeTrip ? state.activeTrip.name : ''}`;
+    document.getElementById('manual-screen-title').textContent = state.activeTrip 
+      ? `Gasto manual — ${state.activeTrip.name} (${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)})`
+      : 'Gasto manual';
     showScreen('manual');
   });
   document.getElementById('btn-manual-back').addEventListener('click', () => showScreen('capture'));
@@ -642,6 +663,10 @@ state.expenses.push(expense);
     await uploadPhotoToDrive(expense, state.pendingImage.dataUrl);
   }
 
+  if (state.activeTrip.sheetId) {
+    await appendExpenseToSheet(expense, state.activeTrip.sheetId);
+  }
+
   state.pendingImage = null;
   renderHome();
   showScreen('home');
@@ -849,6 +874,11 @@ async function saveManualExpense() {
 
   state.expenses.push(expense);
   save();
+
+  if (state.activeTrip.sheetId) {
+    await appendExpenseToSheet(expense, state.activeTrip.sheetId);
+  }
+
   renderHome();
   showScreen('home');
   alert('Gasto guardado.');
@@ -973,11 +1003,13 @@ async function createDriveFolder(trip) {
     // Guardar el ID de la carpeta en el viaje
     trip.driveFolderId = tripData.id;
     trip.driveUrl = `https://drive.google.com/drive/folders/${tripData.id}`;
-    
+
     const idx = state.trips.findIndex(t => t.id === trip.id);
     if (idx !== -1) state.trips[idx] = trip;
     if (state.activeTrip && state.activeTrip.id === trip.id) state.activeTrip = trip;
     save();
+
+    await createTripSheet(trip);
 
     alert(`✅ Viaje "${trip.name}" creado y carpeta en Drive lista.`);
   } catch (err) {
@@ -1069,5 +1101,94 @@ function selectTrip(id) {
   save();
   closeModal('modal-change-trip');
   renderHome();
+}
+// ─── GOOGLE SHEETS ───────────────────────────────────────────────────────────
+async function createTripSheet(trip) {
+  if (!googleToken) return;
+
+  try {
+    // Crear el Google Sheet
+    const createRes = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${googleToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: { title: `${trip.name} — Gastos` },
+        sheets: [
+          { properties: { title: 'Detalle', sheetId: 0 } },
+          { properties: { title: 'Resumen', sheetId: 1 } },
+        ],
+      }),
+    });
+
+    const sheetData = await createRes.json();
+    const sheetId = sheetData.spreadsheetId;
+
+    // Agregar headers Sheet 1
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A1:H1?valueInputOption=RAW`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${googleToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        values: [['Fecha', 'Tipo de gasto', 'Descripción', 'Moneda original', 'Monto original', 'Monto USD', 'Notas', 'Recibo']],
+      }),
+    });
+
+    // Mover el Sheet a la carpeta del viaje
+    await fetch(`https://www.googleapis.com/drive/v3/files/${sheetId}?addParents=${trip.driveFolderId}&removeParents=root`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${googleToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    // Guardar el ID del sheet en el viaje
+    trip.sheetId = sheetId;
+    trip.sheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}`;
+    const idx = state.trips.findIndex(t => t.id === trip.id);
+    if (idx !== -1) state.trips[idx] = trip;
+    if (state.activeTrip && state.activeTrip.id === trip.id) state.activeTrip = trip;
+    save();
+
+  } catch (err) {
+    console.error('Error creando Sheet:', err);
+  }
+}
+async function appendExpenseToSheet(expense, sheetId) {
+  if (!googleToken) return;
+
+  try {
+    const receiptUrl = expense.driveFileId 
+      ? `https://drive.google.com/file/d/${expense.driveFileId}/view` 
+      : '';
+
+    const row = [
+      expense.date,
+      expense.category,
+      expense.description || '',
+      expense.currency,
+      expense.amountOrig,
+      expense.amountUSD,
+      '',
+      receiptUrl,
+    ];
+
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A:H:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${googleToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ values: [row] }),
+    });
+
+  } catch (err) {
+    console.error('Error agregando fila al Sheet:', err);
+  }
 }
 init();

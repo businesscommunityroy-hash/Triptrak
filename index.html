@@ -102,7 +102,7 @@
     </div>
     <div class="content">
       <h2 class="screen-title">Capturar recibo</h2>
-      <p class="screen-sub">Tomá una foto o subí desde tu galería.</p>
+      <p class="screen-sub" id="capture-trip-label">Tomá una foto o subí desde tu galería.</p>
       <div class="upload-zone" id="upload-zone">
         <input type="file" id="file-input" accept="image/*" capture="environment" style="display:none">
         <div class="upload-icon">📷</div>
@@ -120,7 +120,7 @@
       </div>
     </div>
   </div>
- <!-- MANUAL EXPENSE -->
+<!-- MANUAL EXPENSE -->
 <div class="screen" id="screen-manual">
   <div class="header">
     <button class="btn-back" id="btn-manual-back">← Volver</button>
@@ -128,8 +128,8 @@
     <div style="width:60px;"></div>
   </div>
   <div class="content">
-<h2 class="screen-title" id="manual-screen-title">Gasto manual</h2>
-  <p class="screen-sub" id="manual-trip-label">Sin recibo, sin foto. Solo ingresá los datos.</p>
+    <h2 class="screen-title" id="manual-screen-title">Gasto manual</h2>
+    <p class="screen-sub" id="manual-trip-label">Sin recibo, sin foto. Solo ingresá los datos.</p>
     <div class="field">
       <label>Fecha y hora</label>
       <input type="datetime-local" id="manual-datetime">
@@ -146,11 +146,24 @@
       <label>Descripción</label>
       <input type="text" id="manual-description" placeholder="Ej: Taxi al aeropuerto">
     </div>
+    <p class="section-title" style="padding:16px 0 10px;">Recibo (opcional)</p>
+    <div class="upload-zone" id="manual-upload-zone" style="padding:20px;">
+      <input type="file" id="manual-file-input" accept="image/*" style="display:none">
+      <div class="upload-icon" style="font-size:24px;">📎</div>
+      <p class="upload-text">Adjuntar foto de recibo</p>
+      <p class="upload-sub">opcional</p>
+    </div>
+    <div id="manual-photo-preview" style="display:none; margin-bottom:16px;">
+      <img id="manual-photo-img" style="width:100%; border-radius:12px; border:1px solid var(--border);">
+    </div>
     <p class="section-title" style="padding:0 0 10px;">Tipo de gasto</p>
     <div class="category-chips" id="manual-category-chips"></div>
     <button class="btn-primary" id="btn-save-manual">Guardar gasto →</button>
   </div>
 </div>
+<p class="section-title" style="padding:0 0 10px;">Tipo de gasto</p>
+    <div class="category-chips" id="manual-category-chips"></div>
+    <button class="btn-primary" id="btn-save-manual">Guardar gasto →</button>
   <!-- REVIEW -->
   <div class="screen" id="screen-review">
     <div class="header">
