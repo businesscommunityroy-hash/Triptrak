@@ -77,7 +77,6 @@ function init() {
     updateAvatars();
     renderHome();
     showScreen('home');
-    silentLogin();
   }
  
   bindEvents();
@@ -292,12 +291,33 @@ document.getElementById('btn-manual').addEventListener('click', () => {
     document.getElementById('manual-amount').value = '';
     document.getElementById('manual-currency').value = 'USD';
     document.getElementById('manual-description').value = '';
+    document.getElementById('manual-upload-zone').style.display = 'block';
+    document.getElementById('manual-photo-preview').style.display = 'none';
+    document.getElementById('manual-photo-img').src = '';
+    state.pendingImage = null;
     document.getElementById('manual-screen-title').textContent = state.activeTrip 
       ? `Gasto manual — ${state.activeTrip.name} (${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)})`
       : 'Gasto manual';
     showScreen('manual');
   });
   document.getElementById('btn-manual-back').addEventListener('click', () => showScreen('capture'));
+  // MANUAL PHOTO
+  document.getElementById('manual-upload-zone').addEventListener('click', () => {
+    document.getElementById('manual-file-input').click();
+  });
+  document.getElementById('manual-file-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+ reader.onload = (ev) => {
+      state.pendingImage = { dataUrl: ev.target.result, file };
+      document.getElementById('manual-photo-img').src = ev.target.result;
+      document.getElementById('manual-photo-preview').style.display = 'block';
+      document.getElementById('manual-upload-zone').style.display = 'none';
+
+    };
+    reader.readAsDataURL(file);
+  });
   document.getElementById('btn-save-manual').addEventListener('click', saveManualExpense);
   // CATEGORIES
   document.getElementById('btn-categories-back').addEventListener('click', () => showScreen('profile'));
@@ -1031,6 +1051,19 @@ function silentLogin() {
   client.requestAccessToken();
 }
 async function uploadPhotoToDrive(expense, dataUrl) {
+  if (!googleToken) {
+    await new Promise((resolve) => {
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: GOOGLE_SCOPES,
+        callback: (response) => {
+          if (!response.error) googleToken = response.access_token;
+          resolve();
+        },
+      });
+      client.requestAccessToken();
+    });
+  }
   if (!googleToken) return;
 
   try {

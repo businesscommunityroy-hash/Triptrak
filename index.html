@@ -147,9 +147,9 @@
       <input type="text" id="manual-description" placeholder="Ej: Taxi al aeropuerto">
     </div>
     <p class="section-title" style="padding:16px 0 10px;">Recibo (opcional)</p>
+    <input type="file" id="manual-file-input" accept="image/*" style="display:none">
     <div class="upload-zone" id="manual-upload-zone" style="padding:20px;">
-      <input type="file" id="manual-file-input" accept="image/*" style="display:none">
-      <div class="upload-icon" style="font-size:24px;">📎</div>
+    <div class="upload-icon" style="font-size:24px;">+</div>
       <p class="upload-text">Adjuntar foto de recibo</p>
       <p class="upload-sub">opcional</p>
     </div>
@@ -161,44 +161,43 @@
     <button class="btn-primary" id="btn-save-manual">Guardar gasto →</button>
   </div>
 </div>
-<p class="section-title" style="padding:0 0 10px;">Tipo de gasto</p>
-    <div class="category-chips" id="manual-category-chips"></div>
-    <button class="btn-primary" id="btn-save-manual">Guardar gasto →</button>
-  <!-- REVIEW -->
-  <div class="screen" id="screen-review">
-    <div class="header">
-      <button class="btn-back" id="btn-review-back">← Volver</button>
-      <span class="logo">Trip<span>Track</span></span>
-      <div style="width:60px;"></div>
-    </div>
-    <div class="content">
-      <div class="review-photo" id="review-photo">🧾</div>
-      <h2 class="screen-title">Revisá los datos</h2>
-      <p class="screen-sub">La IA extrajo esta información. Corregí si algo está mal.</p>
-      <div class="ai-badge">✨ Extraído por IA — tocá para editar</div>
-      <div class="review-fields">
-        <div class="review-field">
-          <div><p class="rf-label">Fecha y hora</p><input class="rf-input" type="text" id="field-datetime"></div>
-        </div>
-        <div class="review-field">
-          <div><p class="rf-label">Monto original</p><input class="rf-input" type="text" id="field-amount"></div>
-        </div>
-        <div class="review-field">
-          <div><p class="rf-label">Moneda</p><input class="rf-input" type="text" id="field-currency"></div>
-        </div>
-        <div class="review-field">
-          <div><p class="rf-label">Equivalente en USD</p><input class="rf-input" type="text" id="field-usd" readonly></div>
-        </div>
-        <div class="review-field">
-          <div><p class="rf-label">Descripción</p><input class="rf-input" type="text" id="field-description"></div>
-        </div>
-      </div>
-      <p class="section-title" style="padding:0 0 10px;">Tipo de gasto</p>
-      <div class="category-chips" id="category-chips"></div>
-      <button class="btn-primary" id="btn-save-expense">Guardar recibo →</button>
-    </div>
+
+<!-- REVIEW -->
+ <!-- REVIEW -->
+<div class="screen" id="screen-review">
+  <div class="header">
+    <button class="btn-back" id="btn-review-back">← Volver</button>
+    <span class="logo">Trip<span>Track</span></span>
+    <div style="width:60px;"></div>
   </div>
- 
+  <div class="content">
+    <div class="review-photo" id="review-photo">🧾</div>
+    <h2 class="screen-title">Revisá los datos</h2>
+    <p class="screen-sub">La IA extrajo esta información. Corregí si algo está mal.</p>
+    <div class="ai-badge">✨ Extraído por IA — tocá para editar</div>
+    <div class="review-fields">
+      <div class="review-field">
+        <div><p class="rf-label">Fecha y hora</p><input class="rf-input" type="text" id="field-datetime"></div>
+      </div>
+      <div class="review-field">
+        <div><p class="rf-label">Monto original</p><input class="rf-input" type="text" id="field-amount"></div>
+      </div>
+      <div class="review-field">
+        <div><p class="rf-label">Moneda</p><input class="rf-input" type="text" id="field-currency"></div>
+      </div>
+      <div class="review-field">
+        <div><p class="rf-label">Equivalente en USD</p><input class="rf-input" type="text" id="field-usd" readonly></div>
+      </div>
+      <div class="review-field">
+        <div><p class="rf-label">Descripción</p><input class="rf-input" type="text" id="field-description"></div>
+      </div>
+    </div>
+    <p class="section-title" style="padding:0 0 10px;">Tipo de gasto</p>
+    <div class="category-chips" id="category-chips"></div>
+    <button class="btn-primary" id="btn-save-expense">Guardar recibo →</button>
+  </div>
+</div>
+
   <!-- ANALYZE -->
   <div class="screen" id="screen-analyze">
     <div class="header">
