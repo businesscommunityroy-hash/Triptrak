@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TripTrack</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+ 
+  <!-- LOGIN -->
+  <div class="screen active" id="screen-login">
+    <div class="login-box">
+      <div class="login-icon">✈️</div>
+      <h1 class="login-title">TripTrack</h1>
+      <p class="login-sub">Capturá tus gastos de viaje en segundos.<br>Sin papeles, sin trabajo doble.</p>
+      <button class="btn-google" id="btn-login">
+        <img src="assets/google-icon.svg" width="20" height="20" alt="Google">
+        Continuar con Google
+      </button>
+    </div>
+  </div>
+ 
+  <!-- SETUP -->
+  <div class="screen" id="screen-setup">
+    <div class="header">
+      <span class="logo">Trip<span>Track</span></span>
+    </div>
+    <div class="content">
+      <h2 class="screen-title">Configurá tu perfil</h2>
+      <p class="screen-sub">Solo lo hacés una vez.</p>
+      <div class="field">
+        <label>Nombre</label>
+        <input type="text" id="setup-name" placeholder="Tu nombre">
+      </div>
+      <div class="field">
+        <label>Empresa</label>
+        <input type="text" id="setup-company" placeholder="Nombre de tu empresa">
+      </div>
+      <button class="btn-primary" id="btn-setup-save">Empezar →</button>
+    </div>
+  </div>
+ 
+  <!-- HOME -->
+  <div class="screen" id="screen-home">
+    <div class="header">
+      <span class="logo">Trip<span>Track</span></span>
+      <div class="avatar" id="btn-profile">CM</div>
+    </div>
+ 
+    <div class="reminder" id="reminder" style="display:none;">
+      <span>⏰</span>
+      <p class="reminder-text">Hoy no cargaste ningún recibo. <strong>¿Tenés gastos pendientes?</strong></p>
+      <span class="reminder-close" id="btn-reminder-close">×</span>
+    </div>
+ 
+    <div class="home-top">
+      <div class="home-top-row">
+        <div>
+          <p class="trip-name" id="home-trip-name">—</p>
+          <p class="trip-dates" id="home-trip-dates">—</p>
+        </div>
+        <button class="btn-sm" id="btn-new-trip">+ Nuevo viaje</button>
+      </div>
+      <div class="trip-actions">
+        <button class="btn-sm" id="btn-analyze">📊 Analizar viaje</button>
+        <button class="btn-sm" id="btn-change-trip">🔄 Cambiar viaje</button>
+        <button class="btn-sm" id="btn-view-drive">📁 Ver en Drive</button>
+        <button class="btn-sm" id="btn-add-calendar">📅 Agregar a Calendar</button>
+      </div>
+    </div>
+ 
+    <div class="stats-grid" id="stats-grid"></div>
+ 
+    <p class="section-title">Últimos gastos</p>
+    <div id="expenses-list"></div>
+ 
+    <div class="bottom-nav">
+      <div class="nav-item active" id="nav-home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+        Inicio
+      </div>
+      <div class="nav-item nav-center">
+        <button class="capture-btn" id="btn-capture">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
+        <span class="nav-label">Capturar</span>
+      </div>
+      <div class="nav-item" id="nav-history">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Historial
+      </div>
+    </div>
+  </div>
+ 
+  <!-- CAPTURE -->
+  <div class="screen" id="screen-capture">
+    <div class="header">
+      <button class="btn-back" id="btn-capture-back">← Volver</button>
+      <span class="logo">Trip<span>Track</span></span>
+      <div style="width:60px;"></div>
+    </div>
+    <div class="content">
+      <h2 class="screen-title">Capturar recibo</h2>
+      <p class="screen-sub">Tomá una foto o subí desde tu galería.</p>
+      <div class="upload-zone" id="upload-zone">
+        <input type="file" id="file-input" accept="image/*" capture="environment" style="display:none">
+        <div class="upload-icon">📷</div>
+        <p class="upload-text">Tocá para tomar foto</p>
+        <p class="upload-sub">o arrastrá el archivo aquí</p>
+      </div>
+      <div class="or-divider">o</div>
+      <div class="or-divider">o</div>
+    <button class="btn-secondary" id="btn-manual">✏️ Agregar gasto manual</button>
+      <button class="btn-secondary" id="btn-gallery">📁 Subir desde galería</button>
+      <input type="file" id="gallery-input" accept="image/*" multiple style="display:none">
+      <div style="margin-top:16px;">
+        <p class="section-title" style="padding:0 0 10px;">Captura múltiple</p>
+        <button class="btn-secondary" id="btn-multi">+ Agregar varios recibos a la vez</button>
+      </div>
+    </div>
+  </div>
+ <!-- MANUAL EXPENSE -->
+<div class="screen" id="screen-manual">
+  <div class="header">
+    <button class="btn-back" id="btn-manual-back">← Volver</button>
+    <span class="logo">Trip<span>Track</span></span>
+    <div style="width:60px;"></div>
+  </div>
+  <div class="content">
+    <h2 class="screen-title">Gasto manual</h2>
+    <p class="screen-sub">Sin recibo, sin foto. Solo ingresá los datos.</p>
+    <div class="field">
+      <label>Fecha y hora</label>
+      <input type="datetime-local" id="manual-datetime">
+    </div>
+    <div class="field">
+      <label>Monto</label>
+      <input type="number" id="manual-amount" placeholder="0.00">
+    </div>
+    <div class="field">
+      <label>Moneda</label>
+      <input type="text" id="manual-currency" placeholder="USD" value="USD">
+    </div>
+    <div class="field">
+      <label>Descripción</label>
+      <input type="text" id="manual-description" placeholder="Ej: Taxi al aeropuerto">
+    </div>
+    <p class="section-title" style="padding:0 0 10px;">Tipo de gasto</p>
+    <div class="category-chips" id="manual-category-chips"></div>
+    <button class="btn-primary" id="btn-save-manual">Guardar gasto →</button>
+  </div>
+</div>
+  <!-- REVIEW -->
+  <div class="screen" id="screen-review">
+    <div class="header">
+      <button class="btn-back" id="btn-review-back">← Volver</button>
+      <span class="logo">Trip<span>Track</span></span>
+      <div style="width:60px;"></div>
+    </div>
+    <div class="content">
+      <div class="review-photo" id="review-photo">🧾</div>
+      <h2 class="screen-title">Revisá los datos</h2>
+      <p class="screen-sub">La IA extrajo esta información. Corregí si algo está mal.</p>
+      <div class="ai-badge">✨ Extraído por IA — tocá para editar</div>
+      <div class="review-fields">
+        <div class="review-field">
+          <div><p class="rf-label">Fecha y hora</p><input class="rf-input" type="text" id="field-datetime"></div>
+        </div>
+        <div class="review-field">
+          <div><p class="rf-label">Monto original</p><input class="rf-input" type="text" id="field-amount"></div>
+        </div>
+        <div class="review-field">
+          <div><p class="rf-label">Moneda</p><input class="rf-input" type="text" id="field-currency"></div>
+        </div>
+        <div class="review-field">
+          <div><p class="rf-label">Equivalente en USD</p><input class="rf-input" type="text" id="field-usd" readonly></div>
+        </div>
+        <div class="review-field">
+          <div><p class="rf-label">Descripción</p><input class="rf-input" type="text" id="field-description"></div>
+        </div>
+      </div>
+      <p class="section-title" style="padding:0 0 10px;">Tipo de gasto</p>
+      <div class="category-chips" id="category-chips"></div>
+      <button class="btn-primary" id="btn-save-expense">Guardar recibo →</button>
+    </div>
+  </div>
+ 
+  <!-- ANALYZE -->
+  <div class="screen" id="screen-analyze">
+    <div class="header">
+      <button class="btn-back" id="btn-analyze-back">← Volver</button>
+      <span class="logo">Trip<span>Track</span></span>
+      <div style="width:60px;"></div>
+    </div>
+    <div class="content">
+      <h2 class="screen-title" id="analyze-trip-name">Analizar viaje</h2>
+      <div class="stats-grid" id="analyze-stats"></div>
+      <p class="section-title" style="padding:20px 0 10px;">Gasto por categoría</p>
+      <div id="analyze-categories"></div>
+      <p class="section-title" style="padding:20px 0 10px;">Gasto por día</p>
+      <div id="analyze-days"></div>
+    </div>
+  </div>
+ 
+  <!-- PROFILE -->
+  <div class="screen" id="screen-profile">
+    <div class="header">
+      <button class="btn-back" id="btn-profile-back">← Volver</button>
+      <span class="logo">Trip<span>Track</span></span>
+      <div style="width:60px;"></div>
+    </div>
+    <div class="content">
+      <h2 class="screen-title">Mi perfil</h2>
+      <div class="field">
+        <label>Nombre</label>
+        <input type="text" id="profile-name">
+      </div>
+      <div class="field">
+        <label>Empresa</label>
+        <input type="text" id="profile-company">
+      </div>
+      <button class="btn-primary" id="btn-profile-save">Guardar cambios</button>
+      <button class="btn-secondary" id="btn-categories" style="margin-top:12px;">⚙️ Administrar categorías</button>
+    </div>
+  </div>
+ 
+  <!-- CATEGORIES -->
+  <div class="screen" id="screen-categories">
+    <div class="header">
+      <button class="btn-back" id="btn-categories-back">← Volver</button>
+      <span class="logo">Trip<span>Track</span></span>
+      <div style="width:60px;"></div>
+    </div>
+    <div class="content">
+      <h2 class="screen-title">Mis categorías</h2>
+      <p class="screen-sub">Estas categorías aplican a todos tus viajes.</p>
+      <div id="categories-list"></div>
+      <div class="field" style="margin-top:20px;">
+        <label>Nueva categoría</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="new-category-input" placeholder="Ej: Entretenimiento">
+          <button class="btn-sm" id="btn-add-category" style="white-space:nowrap;">+ Agregar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+ 
+  <!-- HISTORY -->
+  <div class="screen" id="screen-history">
+    <div class="header">
+      <span class="logo">Trip<span>Track</span></span>
+      <div class="avatar" id="btn-profile-history">CM</div>
+    </div>
+    <div class="content">
+      <h2 class="screen-title">Historial de viajes</h2>
+      <div id="history-list"></div>
+    </div>
+    <div class="bottom-nav">
+      <div class="nav-item" id="nav-home-2">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+        Inicio
+      </div>
+      <div class="nav-item nav-center">
+        <button class="capture-btn" id="btn-capture-2">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
+        <span class="nav-label">Capturar</span>
+      </div>
+      <div class="nav-item active" id="nav-history-2">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Historial
+      </div>
+    </div>
+  </div>
+ 
+  <!-- NEW TRIP MODAL -->
+  <div class="modal-overlay" id="modal-new-trip">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <p class="modal-title">Nuevo viaje</p>
+      <div class="alert" id="modal-overlap-alert" style="display:none;">⚠️ Ya tenés un viaje activo en esas fechas. Podés continuar igual.</div>
+      <div class="field">
+        <label>Nombre del viaje</label>
+        <input type="text" id="new-trip-name" placeholder="Ej: Nueva York — Cliente ABC">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="field">
+          <label>Fecha inicio</label>
+          <input type="date" id="new-trip-start">
+        </div>
+        <div class="field">
+          <label>Fecha fin</label>
+          <input type="date" id="new-trip-end">
+        </div>
+      </div>
+      <button class="btn-primary" id="btn-create-trip">Crear viaje →</button>
+      <button class="btn-secondary" id="btn-cancel-trip" style="margin-top:8px;">Cancelar</button>
+    </div>
+  </div>
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script src="https://accounts.google.com/gsi/client"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+ 
