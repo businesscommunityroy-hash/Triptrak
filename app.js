@@ -159,16 +159,11 @@ function bindEvents() {
   document.getElementById('btn-cancel-trip').addEventListener('click', () => closeModal('modal-new-trip'));
  
   // HOME → CHANGE TRIP
-  document.getElementById('btn-change-trip').addEventListener('click', () => {
-    const names = state.trips.map((t, i) => `${i + 1}. ${t.name} (${t.start} → ${t.end})`).join('\n');
-    const choice = prompt('Seleccioná el número del viaje:\n\n' + names);
-    const idx = parseInt(choice) - 1;
-    if (idx >= 0 && idx < state.trips.length) {
-      state.activeTrip = state.trips[idx];
-      save();
-      renderHome();
-    }
+document.getElementById('btn-change-trip').addEventListener('click', () => {
+    renderChangeTripModal();
+    openModal('modal-change-trip');
   });
+  document.getElementById('btn-cancel-change-trip').addEventListener('click', () => closeModal('modal-change-trip'));
  
   // HOME → DRIVE
   document.getElementById('btn-view-drive').addEventListener('click', () => {
@@ -1041,5 +1036,38 @@ async function uploadPhotoToDrive(expense, dataUrl) {
   } catch (err) {
     console.error('Error subiendo foto a Drive:', err);
   }
+}
+function renderChangeTripModal() {
+  const today = new Date().toISOString().split('T')[0];
+  const active = state.trips.filter(t => t.end >= today);
+  const past = state.trips.filter(t => t.end < today);
+
+  const renderTrip = (trip) => `
+    <div class="history-item" onclick="selectTrip(${trip.id})">
+      <p class="history-name">${trip.name}</p>
+      <p class="history-dates">${formatDate(trip.start)} → ${formatDate(trip.end)}</p>
+      ${state.activeTrip && state.activeTrip.id === trip.id ? '<p style="font-size:11px;color:var(--accent);margin-top:4px;">● Viaje actual</p>' : ''}
+    </div>
+  `;
+
+  const activeEl = document.getElementById('change-trip-active');
+  const pastEl = document.getElementById('change-trip-past');
+
+  activeEl.innerHTML = active.length > 0
+    ? active.map(renderTrip).join('')
+    : '<p style="color:var(--text2);font-size:13px;padding:8px 0;">No hay viajes activos o próximos.</p>';
+
+  pastEl.innerHTML = past.length > 0
+    ? past.map(renderTrip).join('')
+    : '<p style="color:var(--text2);font-size:13px;padding:8px 0;">No hay viajes anteriores.</p>';
+}
+
+function selectTrip(id) {
+  const trip = state.trips.find(t => t.id === id);
+  if (!trip) return;
+  state.activeTrip = trip;
+  save();
+  closeModal('modal-change-trip');
+  renderHome();
 }
 init();
