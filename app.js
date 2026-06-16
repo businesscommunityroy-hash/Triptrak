@@ -618,7 +618,14 @@ async function saveExpense() {
   const description = document.getElementById('field-description').value;
  
   if (!amountOrig) return alert('Ingresá el monto.');
- 
+ if (state.activeTrip) {
+    const expDate = document.getElementById('field-datetime').value;
+    const date = expDate ? expDate.split(',')[0].trim() : '';
+    if (date && (date < state.activeTrip.start || date > state.activeTrip.end)) {
+      const continuar = confirm(`⚠️ La fecha está fuera del rango del viaje (${state.activeTrip.start} → ${state.activeTrip.end}). ¿Querés continuar igual?`);
+      if (!continuar) return;
+    }
+  }
   const today = new Date().toISOString().split('T')[0];
   const expense = {
     id: Date.now(),
@@ -810,6 +817,13 @@ async function saveManualExpense() {
 
   if (!amountOrig) return alert('Ingresá el monto.');
   if (!datetimeVal) return alert('Ingresá la fecha.');
+  if (state.activeTrip) {
+    const date = datetimeVal.split('T')[0];
+    if (date < state.activeTrip.start || date > state.activeTrip.end) {
+      const continuar = confirm(`⚠️ La fecha está fuera del rango del viaje (${state.activeTrip.start} → ${state.activeTrip.end}). ¿Querés continuar igual?`);
+      if (!continuar) return;
+    }
+  }
 
   const date = datetimeVal.split('T')[0];
   const time = datetimeVal.split('T')[1] || '';
