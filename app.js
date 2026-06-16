@@ -270,7 +270,7 @@ function bindEvents() {
     showScreen('categories');
   });
  // MANUAL EXPENSE
-  document.getElementById('btn-manual').addEventListener('click', () => {
+document.getElementById('btn-manual').addEventListener('click', () => {
     renderManualCategoryChips();
     const now = new Date();
     const local = new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -278,6 +278,7 @@ function bindEvents() {
     document.getElementById('manual-amount').value = '';
     document.getElementById('manual-currency').value = 'USD';
     document.getElementById('manual-description').value = '';
+    document.getElementById('manual-screen-title').textContent = `Gasto manual — ${state.activeTrip ? state.activeTrip.name : ''}`;
     showScreen('manual');
   });
   document.getElementById('btn-manual-back').addEventListener('click', () => showScreen('capture'));
@@ -600,7 +601,7 @@ function preselectCategory(aiCategory) {
 }
  
 // ─── SAVE EXPENSE ─────────────────────────────────────────────────────────────
-function saveExpense() {
+async function saveExpense() {
   if (!state.selectedCategory) return alert('Seleccioná un tipo de gasto.');
  
   let category = state.selectedCategory;
@@ -632,13 +633,18 @@ function saveExpense() {
     image: state.pendingImage ? state.pendingImage.dataUrl : null,
   };
  
-  state.expenses.push(expense);
+state.expenses.push(expense);
   save();
+
+  if (state.pendingImage && state.activeTrip.driveFolderId) {
+    await uploadPhotoToDrive(expense, state.pendingImage.dataUrl);
+  }
+
   state.pendingImage = null;
- 
   renderHome();
   showScreen('home');
   alert('Recibo guardado.');
+
 }
  
 // ─── ANALYZE ─────────────────────────────────────────────────────────────────
@@ -982,5 +988,44 @@ function silentLogin() {
     },
   });
   client.requestAccessToken();
+}
+async function uploadPhotoToDrive(expense, dataUrl) {
+  if (!googleToken) return;
+
+  try {
+    const base64 = dataUrl.split(',')[1];
+    const mimeType = dataUrl.split(';')[0].split(':')[1];
+    const ext = mimeType.split('/')[1];
+    const fileName = `${expense.date}_${expense.category.replace(/[^a-zA-Z0-9]/g, '')}_${expense.amountUSD}USD.${ext}`;
+
+    const metadata = {
+      name: fileName,
+      parents: [state.activeTrip.driveFolderId],
+    };
+
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    
+    const byteChars = atob(base64);
+    const byteArr = new Uint8Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+    form.append('file', new Blob([byteArr], { type: mimeType }));
+
+    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${googleToken}` },
+      body: form,
+    });
+
+    const data = await res.json();
+    if (data.id) {
+      expense.driveFileId = data.id;
+      const idx = state.expenses.findIndex(e => e.id === expense.id);
+      if (idx !== -1) state.expenses[idx] = expense;
+      save();
+    }
+  } catch (err) {
+    console.error('Error subiendo foto a Drive:', err);
+  }
 }
 init();
