@@ -892,7 +892,23 @@ async function fetchGoogleUserInfo(token) {
 // ─── GOOGLE DRIVE ─────────────────────────────────────────────────────────────
 async function createDriveFolder(trip) {
   if (!googleToken) {
-    alert('Conectá tu cuenta de Google primero.');
+    await new Promise((resolve) => {
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: GOOGLE_SCOPES,
+        callback: (response) => {
+          if (!response.error) {
+            googleToken = response.access_token;
+          }
+          resolve();
+        },
+      });
+      client.requestAccessToken();
+    });
+  }
+
+  if (!googleToken) {
+    alert('No se pudo conectar con Google. Intentá de nuevo.');
     return;
   }
 
