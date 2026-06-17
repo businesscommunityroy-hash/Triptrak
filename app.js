@@ -206,6 +206,13 @@ document.getElementById('btn-change-trip').addEventListener('click', () => {
   });
  
   // REMINDER CLOSE
+  document.getElementById('btn-edit-trip-quick').addEventListener('click', () => {
+    if (!state.activeTrip) return alert('No hay viaje activo.');
+    editTrip(state.activeTrip.id);
+  });
+
+ 
+
   // GOOGLE CALENDAR
   document.getElementById('btn-add-calendar').addEventListener('click', () => {
     if (!state.activeTrip) return alert('No hay viaje activo.');
@@ -332,6 +339,12 @@ document.getElementById('btn-manual').addEventListener('click', () => {
     reader.readAsDataURL(file);
   });
   document.getElementById('btn-save-manual').addEventListener('click', saveManualExpense);
+  // MANAGE TRIPS
+  document.getElementById('btn-manage-trips').addEventListener('click', () => {
+    renderManageTrips();
+    showScreen('manage-trips');
+  });
+  document.getElementById('btn-manage-trips-back').addEventListener('click', () => showScreen('profile'));
   // CATEGORIES
   document.getElementById('btn-categories-back').addEventListener('click', () => showScreen('profile'));
   document.getElementById('btn-add-category').addEventListener('click', addCategory);
@@ -1305,5 +1318,116 @@ async function appendExpenseToSheet(expense, sheetId) {
   } catch (err) {
     console.error('Error agregando fila al Sheet:', err);
   }
+}
+// ─── MANAGE TRIPS ─────────────────────────────────────────────────────────────
+function renderManageTrips() {
+  const list = document.getElementById('manage-trips-list');
+  if (state.trips.length === 0) {
+    list.innerHTML = '<div class="empty-state">🗺️<p>No hay viajes todavía.</p></div>';
+    return;
+  }
+
+  list.innerHTML = state.trips.slice().reverse().map(trip => {
+    const expenses = getTripExpenses(trip.id);
+    const total = expenses.reduce((s, e) => s + (parseFloat(e.amountUSD) || 0), 0);
+    const isActive = state.activeTrip && state.activeTrip.id === trip.id;
+    return `
+      <div class="history-item" style="${isActive ? 'border-color:var(--accent);' : ''}">
+        <p class="history-name">${trip.name} ${isActive ? '● Activo' : ''}</p>
+        <p class="history-dates">${formatDate(trip.start)} → ${formatDate(trip.end)}</p>
+        <p class="history-total">$${total.toFixed(2)} USD · ${expenses.length} gastos</p>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button class="btn-sm" onclick="editTrip(${trip.id})">✏️ Editar</button>
+          <button class="btn-sm" onclick="viewTripExpenses(${trip.id})">📋 Gastos</button>
+          <button class="btn-sm danger" onclick="deleteTrip(${trip.id})" style="color:var(--red);border-color:var(--red);">🗑️ Eliminar</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function deleteTrip(id) {
+  const trip = state.trips.find(t => t.id === id);
+  if (!trip) return;
+
+  const confirm1 = confirm(`¿Eliminar el viaje "${trip.name}"? Se eliminarán todos los gastos y la carpeta en Drive.`);
+  if (!confirm1) return;
+
+  // Eliminar carpeta en Drive
+  if (trip.driveFolderId) {
+    if (!googleToken && window._driveToken) googleToken = window._driveToken;
+    if (!googleToken) {
+      await new Promise((resolve) => {
+        const client = google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: GOOGLE_SCOPES,
+          callback: (response) => {
+            if (!response.error) googleToken = response.access_token;
+            resolve();
+          },
+        });
+        client.requestAccessToken();
+      });
+    }
+    try {
+      await fetch(`https://www.googleapis.com/drive/v3/files/${trip.driveFolderId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${googleToken}` },
+      });
+    } catch (err) {
+      console.error('Error eliminando carpeta en Drive:', err);
+    }
+  }
+
+  // Eliminar gastos del viaje
+  state.expenses = state.expenses.filter(e => e.tripId !== id);
+
+  // Eliminar viaje
+  state.trips = state.trips.filter(t => t.id !== id);
+
+  // Si era el viaje activo, limpiar
+  if (state.activeTrip && state.activeTrip.id === id) {
+    state.activeTrip = state.trips.length > 0 ? state.trips[state.trips.length - 1] : null;
+  }
+
+  save();
+  renderManageTrips();
+  renderHome();
+  alert(`Viaje "${trip.name}" eliminado.`);
+}
+
+function editTrip(id) {
+  const trip = state.trips.find(t => t.id === id);
+  if (!trip) return;
+
+  const newName = prompt('Nombre del viaje:', trip.name);
+  if (!newName) return;
+
+  const newStart = prompt('Fecha inicio (YYYY-MM-DD):', trip.start);
+  if (!newStart) return;
+
+  const newEnd = prompt('Fecha fin (YYYY-MM-DD):', trip.end);
+  if (!newEnd) return;
+
+  // Validar que los gastos existentes estén dentro del nuevo rango
+  const expenses = getTripExpenses(id);
+  const outOfRange = expenses.filter(e => e.date < newStart || e.date > newEnd);
+  if (outOfRange.length > 0) {
+    alert(`No podés cambiar las fechas porque ${outOfRange.length} gasto(s) quedarían fuera del rango.`);
+    return;
+  }
+
+  const idx = state.trips.findIndex(t => t.id === id);
+  state.trips[idx] = { ...trip, name: newName, start: newStart, end: newEnd };
+  if (state.activeTrip && state.activeTrip.id === id) {
+    state.activeTrip = state.trips[idx];
+  }
+  save();
+  renderManageTrips();
+  renderHome();
+}
+
+function viewTripExpenses(id) {
+  alert('Próximamente — administrar gastos individuales.');
 }
 init();

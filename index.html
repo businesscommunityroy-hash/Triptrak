@@ -54,7 +54,7 @@
       <span class="reminder-close" id="btn-reminder-close">×</span>
     </div>
  
-    <div class="home-top">
+  <div class="home-top">
       <div class="home-top-row">
         <div>
           <p class="trip-name" id="home-trip-name">—</p>
@@ -66,6 +66,7 @@
         <button class="btn-sm" id="btn-analyze">📊 Analizar viaje</button>
         <button class="btn-sm" id="btn-change-trip">🔄 Cambiar viaje</button>
         <button class="btn-sm" id="btn-view-drive">📁 Ver en Drive</button>
+        <button class="btn-sm" id="btn-edit-trip-quick">✏️ Editar viaje</button>
         <button class="btn-sm" id="btn-add-calendar">📅 Agregar a Calendar</button>
       </div>
     </div>
@@ -234,9 +235,21 @@
       </div>
       <button class="btn-primary" id="btn-profile-save">Guardar cambios</button>
       <button class="btn-secondary" id="btn-categories" style="margin-top:12px;">⚙️ Administrar categorías</button>
+      <button class="btn-secondary" id="btn-manage-trips" style="margin-top:12px;">🗺️ Administrar viajes</button>
     </div>
   </div>
- 
+ <!-- MANAGE TRIPS -->
+<div class="screen" id="screen-manage-trips">
+  <div class="header">
+    <button class="btn-back" id="btn-manage-trips-back">← Volver</button>
+    <span class="logo">Trip<span>Track</span></span>
+    <div style="width:60px;"></div>
+  </div>
+  <div class="content">
+    <h2 class="screen-title">Administrar viajes</h2>
+    <div id="manage-trips-list"></div>
+  </div>
+</div>
   <!-- CATEGORIES -->
   <div class="screen" id="screen-categories">
     <div class="header">
