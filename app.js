@@ -480,26 +480,42 @@ function checkTripOverlap() {
  
 // ─── CREATE TRIP ─────────────────────────────────────────────────────────────
 async function createTrip() {
+  const btn = document.getElementById('btn-create-trip');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = 'Creando...';
+
   const name = document.getElementById('new-trip-name').value.trim();
   const start = document.getElementById('new-trip-start').value;
   const end = document.getElementById('new-trip-end').value;
- 
-  if (!name || !start || !end) return alert('Completá todos los campos.');
-  if (start > end) return alert('La fecha de inicio debe ser antes que la de fin.');
- 
+
+  if (!name || !start || !end) {
+    btn.disabled = false;
+    btn.textContent = 'Crear viaje →';
+    return alert('Completá todos los campos.');
+  }
+  if (start > end) {
+    btn.disabled = false;
+    btn.textContent = 'Crear viaje →';
+    return alert('La fecha de inicio debe ser antes que la de fin.');
+  }
+
   const trip = { id: Date.now(), name, start, end, driveUrl: null };
   state.trips.push(trip);
   state.activeTrip = trip;
   save();
- 
+
   document.getElementById('new-trip-name').value = '';
   document.getElementById('new-trip-start').value = '';
   document.getElementById('new-trip-end').value = '';
   document.getElementById('modal-overlap-alert').style.display = 'none';
   closeModal('modal-new-trip');
- 
+
   renderHome();
   await createDriveFolder(trip);
+
+  btn.disabled = false;
+  btn.textContent = 'Crear viaje →';
 }
  
 // ─── IMAGE HANDLING ───────────────────────────────────────────────────────────
@@ -651,7 +667,16 @@ function preselectCategory(aiCategory) {
  
 // ─── SAVE EXPENSE ─────────────────────────────────────────────────────────────
 async function saveExpense() {
-  if (!state.selectedCategory) return alert('Seleccioná un tipo de gasto.');
+  const btn = document.getElementById('btn-save-expense');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  if (!state.selectedCategory) {
+    btn.disabled = false;
+    btn.textContent = 'Guardar recibo →';
+    return alert('Seleccioná un tipo de gasto.');
+  }
  
   let category = state.selectedCategory;
   if (category === '📦 Otro') {
