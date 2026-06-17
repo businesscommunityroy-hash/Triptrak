@@ -339,6 +339,7 @@ document.getElementById('btn-manual').addEventListener('click', () => {
     reader.readAsDataURL(file);
   });
   document.getElementById('btn-save-manual').addEventListener('click', saveManualExpense);
+  document.getElementById('btn-trip-expenses-back').addEventListener('click', () => showScreen('manage-trips'));
   // MANAGE TRIPS
   document.getElementById('btn-manage-trips').addEventListener('click', () => {
     renderManageTrips();
@@ -1428,6 +1429,96 @@ function editTrip(id) {
 }
 
 function viewTripExpenses(id) {
-  alert('Próximamente — administrar gastos individuales.');
+  const trip = state.trips.find(t => t.id === id);
+  if (!trip) return;
+  window._viewingTripId = id;
+  renderTripExpensesScreen(trip);
+  showScreen('trip-expenses');
+}
+
+function renderTripExpensesScreen(trip) {
+  document.getElementById('trip-expenses-title').textContent = `Gastos — ${trip.name}`;
+  const expenses = getTripExpenses(trip.id);
+  const list = document.getElementById('trip-expenses-list');
+
+  if (expenses.length === 0) {
+    list.innerHTML = '<div class="empty-state">📭<p>No hay gastos en este viaje.</p></div>';
+    return;
+  }
+
+  list.innerHTML = expenses.slice().reverse().map(e => `
+    <div class="history-item">
+      <p class="history-name">${e.category}</p>
+      <p class="history-dates">${e.datetime} — ${e.description || ''}</p>
+      <p class="history-total">$${parseFloat(e.amountUSD).toFixed(2)} USD ${e.currency !== 'USD' ? `(${e.amountOrig} ${e.currency})` : ''}</p>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="btn-sm" onclick="editExpense(${e.id})">✏️ Editar</button>
+        <button class="btn-sm" onclick="deleteExpense(${e.id})" style="color:var(--red);border-color:var(--red);">🗑️ Eliminar</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function editExpense(id) {
+  const expense = state.expenses.find(e => e.id === id);
+  if (!expense) return;
+
+  const newAmount = prompt('Monto:', expense.amountOrig);
+  if (newAmount === null) return;
+
+  const newDescription = prompt('Descripción:', expense.description || '');
+  if (newDescription === null) return;
+
+  const idx = state.expenses.findIndex(e => e.id === id);
+  state.expenses[idx].amountOrig = newAmount;
+  state.expenses[idx].amountUSD = expense.currency === 'USD' ? newAmount : expense.amountUSD;
+  state.expenses[idx].description = newDescription;
+  save();
+
+  const trip = state.trips.find(t => t.id === window._viewingTripId);
+  renderTripExpensesScreen(trip);
+  renderHome();
+  alert('Gasto actualizado. Nota: el cambio no se refleja automáticamente en el Google Sheet.');
+}
+
+async function deleteExpense(id) {
+  const expense = state.expenses.find(e => e.id === id);
+  if (!expense) return;
+
+  const confirmDelete = confirm(`¿Eliminar este gasto de ${expense.category} por $${expense.amountUSD}?`);
+  if (!confirmDelete) return;
+
+  if (expense.driveFileId) {
+    if (!googleToken && window._driveToken) googleToken = window._driveToken;
+    if (!googleToken) {
+      await new Promise((resolve) => {
+        const client = google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: GOOGLE_SCOPES,
+          callback: (response) => {
+            if (!response.error) googleToken = response.access_token;
+            resolve();
+          },
+        });
+        client.requestAccessToken();
+      });
+    }
+    try {
+      await fetch(`https://www.googleapis.com/drive/v3/files/${expense.driveFileId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${googleToken}` },
+      });
+    } catch (err) {
+      console.error('Error eliminando foto de Drive:', err);
+    }
+  }
+
+  state.expenses = state.expenses.filter(e => e.id !== id);
+  save();
+
+  const trip = state.trips.find(t => t.id === window._viewingTripId);
+  renderTripExpensesScreen(trip);
+  renderHome();
+  alert('Gasto eliminado. Nota: la fila en el Google Sheet debe eliminarse manualmente.');
 }
 init();
