@@ -1242,14 +1242,14 @@ async function createTripSheet(trip) {
     const sheetId = sheetData.spreadsheetId;
 
     // Agregar headers Sheet 1
-    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A1:H1?valueInputOption=RAW`, {
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A1:I1?valueInputOption=RAW`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${googleToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        values: [['Fecha', 'Tipo de gasto', 'Descripción', 'Moneda original', 'Monto original', 'Monto USD', 'Notas', 'Recibo']],
+        values: [['Fecha', 'Tipo de gasto', 'Descripción', 'Moneda original', 'Monto original', 'Monto USD', 'Notas', 'Recibo', 'ID (no editar)']],
       }),
     });
 
@@ -1305,9 +1305,10 @@ async function appendExpenseToSheet(expense, sheetId) {
       expense.amountUSD,
       '',
       receiptUrl,
+      expense.id,
     ];
 
-    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A:H:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A:I:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${googleToken}`,
@@ -1459,7 +1460,7 @@ function renderTripExpensesScreen(trip) {
   `).join('');
 }
 
-function editExpense(id) {
+async function editExpense(id) {
   const expense = state.expenses.find(e => e.id === id);
   if (!expense) return;
 
@@ -1476,9 +1477,14 @@ function editExpense(id) {
   save();
 
   const trip = state.trips.find(t => t.id === window._viewingTripId);
+
+  if (trip.sheetId) {
+    await updateExpenseInSheet(state.expenses[idx], trip.sheetId);
+  }
+
   renderTripExpensesScreen(trip);
   renderHome();
-  alert('Gasto actualizado. Nota: el cambio no se refleja automáticamente en el Google Sheet.');
+  alert('Gasto actualizado y sincronizado con el Sheet.');
 }
 
 async function deleteExpense(id) {
@@ -1513,12 +1519,122 @@ async function deleteExpense(id) {
     }
   }
 
+  const trip = state.trips.find(t => t.id === window._viewingTripId);
+
+  if (trip.sheetId) {
+    await deleteExpenseFromSheet(expense.id, trip.sheetId);
+  }
+
   state.expenses = state.expenses.filter(e => e.id !== id);
   save();
 
-  const trip = state.trips.find(t => t.id === window._viewingTripId);
-  renderTripExpensesScreen(trip);
-  renderHome();
-  alert('Gasto eliminado. Nota: la fila en el Google Sheet debe eliminarse manualmente.');
+   renderTripExpensesScreen(trip);
+   renderHome();
+  alert('Gasto eliminado y sincronizado con el Sheet.');
+}
+async function findRowByExpenseId(sheetId, expenseId) {
+  if (!googleToken) return null;
+  console.log('Buscando fila para expenseId:', expenseId, 'tipo:', typeof expenseId);
+  try {
+      const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!I:I`, {
+      headers: { Authorization: `Bearer ${googleToken}` },
+    });
+    const data = await res.json();
+    console.log('Valores columna I:', data.values);
+    if (!data.values) return null;
+    const rowIndex = data.values.findIndex(row => row[0] === String(expenseId));
+    return rowIndex === -1 ? null : rowIndex + 1; // +1 porque Sheets es 1-indexed
+  } catch (err) {
+    console.error('Error buscando fila:', err);
+    return null;
+  }
+}
+async function updateExpenseInSheet(expense, sheetId) {
+  console.log('Actualizando sheet, sheetId:', sheetId, 'expenseId:', expense.id);
+  if (!googleToken && window._driveToken) googleToken = window._driveToken;
+  if (!googleToken) {
+    await new Promise((resolve) => {
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: GOOGLE_SCOPES,
+        callback: (response) => {
+          if (!response.error) googleToken = response.access_token;
+          resolve();
+        },
+      });
+      client.requestAccessToken();
+    });
+  }
+  if (!googleToken) return;
+
+  const rowNum = await findRowByExpenseId(sheetId, expense.id);
+  if (!rowNum) {
+    console.warn('No se encontró la fila en el Sheet para actualizar.');
+    return;
+  }
+
+  const receiptUrl = expense.driveFileId 
+    ? `https://drive.google.com/file/d/${expense.driveFileId}/view` 
+    : '';
+
+  const row = [
+    expense.date,
+    expense.category,
+    expense.description || '',
+    expense.currency,
+    expense.amountOrig,
+    expense.amountUSD,
+    '',
+    receiptUrl,
+    expense.id,
+  ];
+
+  try {
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A${rowNum}:I${rowNum}?valueInputOption=RAW`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${googleToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ values: [row] }),
+    });
+  } catch (err) {
+    console.error('Error actualizando fila en Sheet:', err);
+  }
+}
+
+async function deleteExpenseFromSheet(expenseId, sheetId) {
+  if (!googleToken && window._driveToken) googleToken = window._driveToken;
+  if (!googleToken) return;
+
+  const rowNum = await findRowByExpenseId(sheetId, expenseId);
+  if (!rowNum) {
+    console.warn('No se encontró la fila en el Sheet para eliminar.');
+    return;
+  }
+
+  try {
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${googleToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: 0,
+              dimension: 'ROWS',
+              startIndex: rowNum - 1,
+              endIndex: rowNum,
+            },
+          },
+        }],
+      }),
+    });
+  } catch (err) {
+    console.error('Error eliminando fila en Sheet:', err);
+  }
 }
 init();
