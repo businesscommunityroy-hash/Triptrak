@@ -35,13 +35,26 @@ const state = {
  
 // ─── PERSISTENCE ─────────────────────────────────────────────────────────────
 function save() {
-  localStorage.setItem('triptrack', JSON.stringify({
-    user: state.user,
-    trips: state.trips,
-    activeTrip: state.activeTrip,
-    expenses: state.expenses,
-    categories: state.categories,
-  }));
+  const expensesWithoutImages = state.expenses.map(e => ({ ...e, image: null }));
+  try {
+    localStorage.setItem('triptrack', JSON.stringify({
+      user: state.user,
+      trips: state.trips,
+      activeTrip: state.activeTrip,
+      expenses: expensesWithoutImages,
+      categories: state.categories,
+    }));
+  } catch (err) {
+    console.warn('localStorage lleno, limpiando datos antiguos...');
+    localStorage.removeItem('triptrack');
+    localStorage.setItem('triptrack', JSON.stringify({
+      user: state.user,
+      trips: state.trips,
+      activeTrip: state.activeTrip,
+      expenses: expensesWithoutImages,
+      categories: state.categories,
+    }));
+  }
 }
  
 function load() {
@@ -673,25 +686,21 @@ async function saveExpense() {
     amountUSD,
     description,
     category,
-    image: state.pendingImage ? state.pendingImage.dataUrl : null,
+    image: null,
   };
  
-state.expenses.push(expense);
-  save();
-
-  if (state.pendingImage && state.activeTrip.driveFolderId) {
-    await uploadPhotoToDrive(expense, state.pendingImage.dataUrl);
-  }
-
+  state.expenses.push(expense);
+    åsave();
   if (state.activeTrip.sheetId) {
     await appendExpenseToSheet(expense, state.activeTrip.sheetId);
   }
-
+  if (state.pendingImage && state.activeTrip.driveFolderId) {
+    await uploadPhotoToDrive(expense, state.pendingImage.dataUrl);
+  }
   state.pendingImage = null;
   renderHome();
   showScreen('home');
-  alert('Recibo guardado.');
-
+  alert('Gasto guardado.');
 }
  
 // ─── ANALYZE ─────────────────────────────────────────────────────────────────
@@ -879,7 +888,7 @@ async function saveManualExpense() {
     } catch { amountUSD = amountOrig; }
   }
 
-  const expense = {
+const expense = {
     id: Date.now(),
     tripId: state.activeTrip.id,
     datetime,
@@ -889,7 +898,7 @@ async function saveManualExpense() {
     amountUSD,
     description,
     category,
-    image: null,
+    image: state.pendingImage ? state.pendingImage.dataUrl : null,
   };
 
   state.expenses.push(expense);
@@ -899,11 +908,16 @@ async function saveManualExpense() {
     await appendExpenseToSheet(expense, state.activeTrip.sheetId);
   }
 
+  if (state.pendingImage && state.activeTrip.driveFolderId) {
+    await uploadPhotoToDrive(expense, state.pendingImage.dataUrl);
+  }
+
+  state.pendingImage = null;
   renderHome();
   showScreen('home');
   alert('Gasto guardado.');
 }
- 
+
 // ─── START ────────────────────────────────────────────────────────────────────
 // ─── GOOGLE CALENDAR ─────────────────────────────────────────────────────────
 function addTripToGoogleCalendar(trip) {
@@ -1051,6 +1065,7 @@ function silentLogin() {
   client.requestAccessToken();
 }
 async function uploadPhotoToDrive(expense, dataUrl) {
+  if (!googleToken && window._driveToken) googleToken = window._driveToken;
   if (!googleToken) {
     await new Promise((resolve) => {
       const client = google.accounts.oauth2.initTokenClient({
@@ -1067,6 +1082,7 @@ async function uploadPhotoToDrive(expense, dataUrl) {
   if (!googleToken) return;
 
   try {
+    console.log('Subiendo foto...', expense, dataUrl ? 'tiene imagen' : 'sin imagen');
     const base64 = dataUrl.split(',')[1];
     const mimeType = dataUrl.split(';')[0].split(':')[1];
     const ext = mimeType.split('/')[1];
@@ -1193,6 +1209,20 @@ async function createTripSheet(trip) {
   }
 }
 async function appendExpenseToSheet(expense, sheetId) {
+  if (!googleToken) {
+    await new Promise((resolve) => {
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: GOOGLE_SCOPES,
+        callback: (response) => {
+          if (!response.error) googleToken = response.access_token;
+          resolve();
+        },
+      });
+      client.requestAccessToken();
+    });
+  }
+  if (!window._driveToken) window._driveToken = googleToken;
   if (!googleToken) return;
 
   try {

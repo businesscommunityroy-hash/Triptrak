@@ -104,7 +104,7 @@
       <h2 class="screen-title">Capturar recibo</h2>
       <p class="screen-sub" id="capture-trip-label">Tomá una foto o subí desde tu galería.</p>
       <div class="upload-zone" id="upload-zone">
-        <input type="file" id="file-input" accept="image/*" capture="environment" style="display:none">
+        <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp" capture="environment" style="display:none">
         <div class="upload-icon">📷</div>
         <p class="upload-text">Tocá para tomar foto</p>
         <p class="upload-sub">o arrastrá el archivo aquí</p>
@@ -113,7 +113,7 @@
       <div class="or-divider">o</div>
     <button class="btn-secondary" id="btn-manual">✏️ Agregar gasto manual</button>
       <button class="btn-secondary" id="btn-gallery">📁 Subir desde galería</button>
-      <input type="file" id="gallery-input" accept="image/*" multiple style="display:none">
+      <input type="file" id="gallery-input" accept="image/jpeg,image/png,image/webp" multiple style="display:none">
       <div style="margin-top:16px;">
         <p class="section-title" style="padding:0 0 10px;">Captura múltiple</p>
         <button class="btn-secondary" id="btn-multi">+ Agregar varios recibos a la vez</button>
@@ -147,7 +147,7 @@
       <input type="text" id="manual-description" placeholder="Ej: Taxi al aeropuerto">
     </div>
     <p class="section-title" style="padding:16px 0 10px;">Recibo (opcional)</p>
-    <input type="file" id="manual-file-input" accept="image/*" style="display:none">
+    <input type="file" id="manual-file-input" accept="image/jpeg,image/png,image/webp" style="display:none">
     <div class="upload-zone" id="manual-upload-zone" style="padding:20px;">
     <div class="upload-icon" style="font-size:24px;">+</div>
       <p class="upload-text">Adjuntar foto de recibo</p>
