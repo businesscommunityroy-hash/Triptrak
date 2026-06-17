@@ -875,12 +875,25 @@ function selectManualChip(el) {
 }
 
 async function saveManualExpense() {
-  if (!state.selectedCategory) return alert('Seleccioná un tipo de gasto.');
+  const btn = document.getElementById('btn-save-manual');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  if (!state.selectedCategory) {
+    btn.disabled = false;
+    btn.textContent = 'Guardar gasto →';
+    return alert('Seleccioná un tipo de gasto.');
+  }
 
   let category = state.selectedCategory;
   if (category === '📦 Otro') {
     const otroVal = document.getElementById('manual-otro-input').value.trim();
-    if (!otroVal) return alert('Escribí el concepto del gasto.');
+    if (!otroVal) {
+      btn.disabled = false;
+      btn.textContent = 'Guardar gasto →';
+      return alert('Escribí el concepto del gasto.');
+    }
     category = '📦 ' + otroVal;
   }
 
@@ -889,13 +902,25 @@ async function saveManualExpense() {
   const currency = document.getElementById('manual-currency').value.toUpperCase();
   const description = document.getElementById('manual-description').value;
 
-  if (!amountOrig) return alert('Ingresá el monto.');
-  if (!datetimeVal) return alert('Ingresá la fecha.');
+  if (!amountOrig) {
+    btn.disabled = false;
+    btn.textContent = 'Guardar gasto →';
+    return alert('Ingresá el monto.');
+  }
+  if (!datetimeVal) {
+    btn.disabled = false;
+    btn.textContent = 'Guardar gasto →';
+    return alert('Ingresá la fecha.');
+  }
   if (state.activeTrip) {
     const date = datetimeVal.split('T')[0];
     if (date < state.activeTrip.start || date > state.activeTrip.end) {
       const continuar = confirm(`⚠️ La fecha está fuera del rango del viaje (${state.activeTrip.start} → ${state.activeTrip.end}). ¿Querés continuar igual?`);
-      if (!continuar) return;
+      if (!continuar) {
+        btn.disabled = false;
+        btn.textContent = 'Guardar gasto →';
+        return;
+      }
     }
   }
 
@@ -913,7 +938,7 @@ async function saveManualExpense() {
     } catch { amountUSD = amountOrig; }
   }
 
-const expense = {
+  const expense = {
     id: Date.now(),
     tripId: state.activeTrip.id,
     datetime,
@@ -923,7 +948,7 @@ const expense = {
     amountUSD,
     description,
     category,
-    image: state.pendingImage ? state.pendingImage.dataUrl : null,
+    image: null,
   };
 
   state.expenses.push(expense);
@@ -938,6 +963,8 @@ const expense = {
   }
 
   state.pendingImage = null;
+  btn.disabled = false;
+  btn.textContent = 'Guardar gasto →';
   renderHome();
   showScreen('home');
   alert('Gasto guardado.');
