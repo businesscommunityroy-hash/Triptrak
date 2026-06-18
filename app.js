@@ -78,6 +78,13 @@ function showScreen(id) {
 // ─── MODAL ───────────────────────────────────────────────────────────────────
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function showLoading(text) {
+  document.getElementById('loading-text').textContent = text;
+  document.getElementById('loading-overlay').style.display = 'flex';
+}
+function hideLoading() {
+  document.getElementById('loading-overlay').style.display = 'none';
+}
  
 // ─── INIT ────────────────────────────────────────────────────────────────────
 function init() {
@@ -492,7 +499,6 @@ function checkTripOverlap() {
   document.getElementById('modal-overlap-alert').style.display = overlap ? 'block' : 'none';
 }
  
-// ─── CREATE TRIP ─────────────────────────────────────────────────────────────
 async function createTrip() {
   const btn = document.getElementById('btn-create-trip');
   if (btn.disabled) return;
@@ -526,12 +532,14 @@ async function createTrip() {
   closeModal('modal-new-trip');
 
   renderHome();
+  showLoading('Creando carpeta en Drive y hoja de gastos...');
   await createDriveFolder(trip);
+  hideLoading();
 
   btn.disabled = false;
   btn.textContent = 'Crear viaje →';
 }
- 
+
 // ─── IMAGE HANDLING ───────────────────────────────────────────────────────────
 function handleImageFile(file) {
   if (!file) return;
@@ -1230,7 +1238,7 @@ async function createTripSheet(trip) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        properties: { title: `${trip.name} — Gastos` },
+        properties: { title: `${trip.start}_${trip.name}` },
         sheets: [
           { properties: { title: 'Detalle', sheetId: 0 } },
           { properties: { title: 'Resumen', sheetId: 1 } },
@@ -1398,7 +1406,7 @@ async function deleteTrip(id) {
   alert(`Viaje "${trip.name}" eliminado.`);
 }
 
-function editTrip(id) {
+async function editTrip(id) {
   const trip = state.trips.find(t => t.id === id);
   if (!trip) return;
 
@@ -1425,6 +1433,59 @@ function editTrip(id) {
     state.activeTrip = state.trips[idx];
   }
   save();
+
+  showLoading('Actualizando Drive y Sheet...');
+
+  if (!googleToken && window._driveToken) googleToken = window._driveToken;
+  if (!googleToken) {
+    await new Promise((resolve) => {
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: GOOGLE_SCOPES,
+        callback: (response) => {
+          if (!response.error) googleToken = response.access_token;
+          resolve();
+        },
+      });
+      client.requestAccessToken();
+    });
+  }
+
+  if (googleToken) {
+    // Renombrar carpeta en Drive
+    if (trip.driveFolderId) {
+      try {
+        await fetch(`https://www.googleapis.com/drive/v3/files/${trip.driveFolderId}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${googleToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ name: `${newStart}_${newName}` }),
+        });
+      } catch (err) {
+        console.error('Error renombrando carpeta en Drive:', err);
+      }
+    }
+
+   // Renombrar Sheet (cambia el nombre del archivo en Drive, que es lo que se ve)
+    if (trip.sheetId) {
+      try {
+        await fetch(`https://www.googleapis.com/drive/v3/files/${trip.sheetId}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${googleToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ name: `${newStart}_${newName}` }),
+        });
+      } catch (err) {
+        console.error('Error renombrando sheet:', err);
+      }
+    }
+  }
+
+  hideLoading();
   renderManageTrips();
   renderHome();
 }
