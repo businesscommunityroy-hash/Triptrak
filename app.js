@@ -786,7 +786,8 @@ function renderAnalyze() {
   document.getElementById('analyze-trip-name').textContent = trip.name;
  
   const totalSpent = expenses.reduce((s, e) => s + (parseFloat(e.amountUSD) || 0), 0);
-  const avgPerDay = elapsed > 0 ? totalSpent / elapsed : 0;
+  const daysWithExpenses = new Set(expenses.map(e => e.date)).size;
+  const avgPerDay = daysWithExpenses > 0 ? totalSpent / daysWithExpenses : 0;
   const projection = avgPerDay * total;
  
   document.getElementById('analyze-stats').innerHTML = `
