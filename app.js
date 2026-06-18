@@ -587,11 +587,11 @@ function compressImage(dataUrl, callback) {
 function showReviewScreen(dataUrl) {
   const photo = document.getElementById('review-photo');
   photo.innerHTML = `<img src="${dataUrl}" alt="Recibo">`;
-  document.getElementById('field-date').value = new Date().toISOString().split('T')[0];
-  document.getElementById('field-amount').value = '';
-  document.getElementById('field-currency').value = '';
-  document.getElementById('field-usd').value = '';
-  document.getElementById('field-description').value = '';
+  document.getElementById('field-date').value = '';
+  document.getElementById('field-amount').value = 'Obteniendo Datos con AI...';
+  document.getElementById('field-currency').value = 'Obteniendo Datos con AI...';
+  document.getElementById('field-usd').value = 'Obteniendo Datos con AI...';
+  document.getElementById('field-description').value = 'Obteniendo Datos con AI...';
   renderCategoryChips();
   showScreen('review');
   const label = document.getElementById('review-trip-label');

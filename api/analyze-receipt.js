@@ -29,9 +29,9 @@ export default async function handler(req, res) {
             },
             {
               type: 'text',
-              text: `Analizá este recibo y extraé la información en JSON exacto, sin texto adicional, sin markdown:
+              text: `Analizá este recibo y extraé la información en JSON exacto, sin texto adicional, sin markdown. El año actual es ${new Date().getFullYear()}, usalo como referencia si el recibo no especifica el año claramente:
 {
-  "datetime": "fecha y hora del recibo en formato legible, ej: Jun 22, 2026 — 8:30 PM",
+  "dateISO": "fecha del recibo en formato YYYY-MM-DD, ej: 2026-06-22",
   "amountOrig": "monto original como número, ej: 87.50",
   "currency": "código de moneda de 3 letras, ej: USD, EUR, MXN",
   "description": "descripción breve del gasto en español",
