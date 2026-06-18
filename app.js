@@ -519,6 +519,15 @@ async function createTrip() {
     btn.textContent = 'Crear viaje →';
     return alert('La fecha de inicio debe ser antes que la de fin.');
   }
+  const today = new Date().toISOString().split('T')[0];
+  if (end < today) {
+    const continuar = confirm(`⚠️ Las fechas de este viaje ya pasaron. ¿Querés crearlo de todas formas?`);
+    if (!continuar) {
+      btn.disabled = false;
+      btn.textContent = 'Crear viaje →';
+      return;
+    }
+  }
 
   const trip = { id: Date.now(), name, start, end, driveUrl: null };
   state.trips.push(trip);
