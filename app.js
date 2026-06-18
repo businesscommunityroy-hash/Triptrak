@@ -320,7 +320,7 @@ document.getElementById('btn-manual').addEventListener('click', () => {
     document.getElementById('manual-description').value = '';
     document.getElementById('manual-upload-zone').style.display = 'block';
     document.getElementById('manual-photo-preview').style.display = 'none';
-    document.getElementById('manual-photo-img').src = '';
+    document.getElementById('manual-photo-thumb').src = '';
     state.pendingImage = null;
     document.getElementById('manual-screen-title').textContent = state.activeTrip 
       ? `Gasto manual — ${state.activeTrip.name} (${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)})`
@@ -338,7 +338,8 @@ document.getElementById('btn-manual').addEventListener('click', () => {
     const reader = new FileReader();
  reader.onload = (ev) => {
       state.pendingImage = { dataUrl: ev.target.result, file };
-      document.getElementById('manual-photo-img').src = ev.target.result;
+      document.getElementById('manual-photo-thumb').src = ev.target.result;
+      document.getElementById('photo-fullscreen-img').src = ev.target.result;
       document.getElementById('manual-photo-preview').style.display = 'block';
       document.getElementById('manual-upload-zone').style.display = 'none';
 
@@ -1718,5 +1719,20 @@ async function deleteExpenseFromSheet(expenseId, sheetId) {
   } catch (err) {
     console.error('Error eliminando fila en Sheet:', err);
   }
+}
+function openPhotoFullscreen() {
+  document.getElementById('photo-fullscreen').style.display = 'flex';
+}
+
+function closePhotoFullscreen() {
+  document.getElementById('photo-fullscreen').style.display = 'none';
+}
+
+function removeManualPhoto() {
+  state.pendingImage = null;
+  document.getElementById('manual-photo-preview').style.display = 'none';
+  document.getElementById('manual-photo-thumb').src = '';
+  document.getElementById('photo-fullscreen-img').src = '';
+  document.getElementById('manual-upload-zone').style.display = 'block';
 }
 init();

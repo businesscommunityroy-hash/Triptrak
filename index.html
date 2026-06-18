@@ -154,9 +154,21 @@
       <p class="upload-text">Adjuntar foto de recibo</p>
       <p class="upload-sub">opcional</p>
     </div>
-    <div id="manual-photo-preview" style="display:none; margin-bottom:16px;">
-      <img id="manual-photo-img" style="width:100%; border-radius:12px; border:1px solid var(--border);">
+<div id="manual-photo-preview" style="display:none; margin-bottom:16px;">
+  <div style="display:flex; align-items:center; gap:12px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px;">
+    <img id="manual-photo-thumb" onclick="openPhotoFullscreen()" style="width:56px; height:56px; object-fit:cover; border-radius:8px; cursor:pointer; border:1px solid var(--border);">
+    <div style="flex:1;">
+      <p style="font-size:13px; font-weight:500; color:var(--text);">Recibo adjunto</p>
+      <p style="font-size:11px; color:var(--text2);">Tocá la imagen para verla completa</p>
     </div>
+    <span onclick="removeManualPhoto()" style="color:var(--text3); cursor:pointer; font-size:20px; padding:4px;">×</span>
+  </div>
+</div>
+
+<!-- PHOTO FULLSCREEN -->
+<div id="photo-fullscreen" onclick="closePhotoFullscreen()" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:400; align-items:center; justify-content:center;">
+  <img id="photo-fullscreen-img" style="max-width:95%; max-height:95%; border-radius:8px;">
+</div>
     <p class="section-title" style="padding:0 0 10px;">Tipo de gasto</p>
     <div class="category-chips" id="manual-category-chips"></div>
     <button class="btn-primary" id="btn-save-manual">Guardar gasto →</button>
