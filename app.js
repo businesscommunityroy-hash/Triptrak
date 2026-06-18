@@ -1305,7 +1305,7 @@ async function appendExpenseToSheet(expense, sheetId) {
 
     const row = [
       expense.date,
-      expense.category,
+      expense.category.replace(/^[^a-zA-ZÀ-ÿ]+/, ''),
       expense.description || '',
       expense.currency,
       expense.amountOrig,
@@ -1314,7 +1314,7 @@ async function appendExpenseToSheet(expense, sheetId) {
       receiptUrl,
       expense.id,
     ];
-
+   
     await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A:I:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
       method: 'POST',
       headers: {
