@@ -570,13 +570,19 @@ function handleImageFile(file) {
 function showReviewScreen(dataUrl) {
   const photo = document.getElementById('review-photo');
   photo.innerHTML = `<img src="${dataUrl}" alt="Recibo">`;
-  document.getElementById('field-datetime').value = 'Analizando...';
-  document.getElementById('field-amount').value = 'Analizando...';
-  document.getElementById('field-currency').value = 'Analizando...';
-  document.getElementById('field-usd').value = 'Analizando...';
-  document.getElementById('field-description').value = 'Analizando...';
+  document.getElementById('field-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('field-amount').value = '';
+  document.getElementById('field-currency').value = '';
+  document.getElementById('field-usd').value = '';
+  document.getElementById('field-description').value = '';
   renderCategoryChips();
   showScreen('review');
+  const label = document.getElementById('review-trip-label');
+  if (label) {
+    label.textContent = state.activeTrip
+      ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
+      : 'La IA extrajo esta información. Corregí si algo está mal.';
+  }
 }
  
 // ─── AI PROCESSING ────────────────────────────────────────────────────────────
@@ -599,7 +605,9 @@ async function processImageWithAI(dataUrl) {
     const clean = text.replace(/```json|```/g, '').trim();
     const result = JSON.parse(clean);
 
-    document.getElementById('field-datetime').value = result.datetime || '';
+    if (result.dateISO) {
+      document.getElementById('field-date').value = result.dateISO;
+    }
     document.getElementById('field-amount').value = result.amountOrig || '';
     document.getElementById('field-currency').value = result.currency || 'USD';
     document.getElementById('field-description').value = result.description || '';
@@ -609,7 +617,6 @@ async function processImageWithAI(dataUrl) {
 
   } catch (err) {
     console.error('AI error:', err);
-    document.getElementById('field-datetime').value = new Date().toLocaleDateString('es');
     document.getElementById('field-amount').value = '';
     document.getElementById('field-currency').value = 'USD';
     document.getElementById('field-usd').value = '';
