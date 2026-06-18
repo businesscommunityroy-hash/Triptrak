@@ -622,6 +622,7 @@ async function processImageWithAI(dataUrl) {
     const text = data.content[0].text.trim();
     const clean = text.replace(/```json|```/g, '').trim();
     const result = JSON.parse(clean);
+    console.log('Resultado AI:', result);
 
     if (result.dateISO) {
       document.getElementById('field-date').value = result.dateISO;
