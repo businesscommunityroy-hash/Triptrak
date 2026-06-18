@@ -585,11 +585,14 @@ async function processImageWithAI(dataUrl) {
   const mediaType = dataUrl.split(';')[0].split(':')[1];
  
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('/api/analyze-receipt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        image: base64,
+        mediaType: mediaType,
+      })
+    });
         max_tokens: 1000,
         messages: [{
           role: 'user',
