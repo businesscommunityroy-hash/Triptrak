@@ -583,7 +583,7 @@ function showReviewScreen(dataUrl) {
 async function processImageWithAI(dataUrl) {
   const base64 = dataUrl.split(',')[1];
   const mediaType = dataUrl.split(';')[0].split(':')[1];
- 
+
   try {
     const response = await fetch('/api/analyze-receipt', {
       method: 'POST',
@@ -593,43 +593,20 @@ async function processImageWithAI(dataUrl) {
         mediaType: mediaType,
       })
     });
-        max_tokens: 1000,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: mediaType, data: base64 }
-            },
-            {
-              type: 'text',
-              text: `Analizá este recibo y extraé la información en JSON exacto, sin texto adicional, sin markdown:
-{
-  "datetime": "fecha y hora del recibo en formato legible, ej: Jun 22, 2026 — 8:30 PM",
-  "amountOrig": "monto original como número, ej: 87.50",
-  "currency": "código de moneda de 3 letras, ej: USD, EUR, MXN",
-  "description": "descripción breve del gasto en español",
-  "category": "una de estas opciones exactas: Comida, Hotel, Vuelo, Combustible, Transporte, Entretenimiento, Otro"
-}`
-            }
-          ]
-        }]
-      })
-    });
- 
+
     const data = await response.json();
     const text = data.content[0].text.trim();
     const clean = text.replace(/```json|```/g, '').trim();
     const result = JSON.parse(clean);
- 
+
     document.getElementById('field-datetime').value = result.datetime || '';
     document.getElementById('field-amount').value = result.amountOrig || '';
     document.getElementById('field-currency').value = result.currency || 'USD';
     document.getElementById('field-description').value = result.description || '';
- 
+
     await convertToUSD(result.amountOrig, result.currency);
     preselectCategory(result.category);
- 
+
   } catch (err) {
     console.error('AI error:', err);
     document.getElementById('field-datetime').value = new Date().toLocaleDateString('es');
