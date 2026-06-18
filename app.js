@@ -313,8 +313,8 @@ document.getElementById('btn-change-trip').addEventListener('click', () => {
 document.getElementById('btn-manual').addEventListener('click', () => {
     renderManualCategoryChips();
     const now = new Date();
-    const local = new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    document.getElementById('manual-datetime').value = local;
+    const localDate = new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    document.getElementById('manual-datetime').value = localDate;
     document.getElementById('manual-amount').value = '';
     document.getElementById('manual-currency').value = 'USD';
     document.getElementById('manual-description').value = '';
@@ -935,7 +935,7 @@ async function saveManualExpense() {
     return alert('Ingresá la fecha.');
   }
   if (state.activeTrip) {
-    const date = datetimeVal.split('T')[0];
+    const date = datetimeVal;
     if (date < state.activeTrip.start || date > state.activeTrip.end) {
       const continuar = confirm(`⚠️ La fecha está fuera del rango del viaje (${state.activeTrip.start} → ${state.activeTrip.end}). ¿Querés continuar igual?`);
       if (!continuar) {
@@ -946,9 +946,8 @@ async function saveManualExpense() {
     }
   }
 
-  const date = datetimeVal.split('T')[0];
-  const time = datetimeVal.split('T')[1] || '';
-  const datetime = `${formatDate(date)} — ${time}`;
+  const date = datetimeVal;
+  const datetime = formatDate(date);
 
   let amountUSD = amountOrig;
   if (currency !== 'USD') {
