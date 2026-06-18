@@ -727,7 +727,7 @@ async function saveExpense() {
     category = '📦 ' + otroVal;
   }
 
-  const datetime = document.getElementById('field-datetime').value;
+  const datetime = document.getElementById('field-date').value;
   const amountOrig = document.getElementById('field-amount').value;
   const currency = document.getElementById('field-currency').value;
   const amountUSD = document.getElementById('field-usd').value;
@@ -740,7 +740,7 @@ async function saveExpense() {
   }
 
   if (state.activeTrip) {
-    const expDate = document.getElementById('field-datetime').value;
+    const expDate = document.getElementById('field-date').value;
     const date = expDate ? expDate.split(',')[0].trim() : '';
     if (date && (date < state.activeTrip.start || date > state.activeTrip.end)) {
       btn.disabled = false;
