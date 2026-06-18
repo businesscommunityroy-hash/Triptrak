@@ -557,16 +557,34 @@ function handleImageFile(file) {
     alert('Primero creá un viaje.');
     return;
   }
- 
+
   const reader = new FileReader();
   reader.onload = (e) => {
-    state.pendingImage = { dataUrl: e.target.result, file };
-    showReviewScreen(e.target.result);
-    processImageWithAI(e.target.result);
+    compressImage(e.target.result, (compressedDataUrl) => {
+      state.pendingImage = { dataUrl: compressedDataUrl, file };
+      showReviewScreen(compressedDataUrl);
+      processImageWithAI(compressedDataUrl);
+    });
   };
   reader.readAsDataURL(file);
 }
- 
+
+function compressImage(dataUrl, callback) {
+  const img = new Image();
+  img.onload = () => {
+    const maxWidth = 1200;
+    const scale = Math.min(1, maxWidth / img.width);
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width * scale;
+    canvas.height = img.height * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const compressed = canvas.toDataURL('image/jpeg', 0.7);
+    callback(compressed);
+  };
+  img.src = dataUrl;
+}
+
 function showReviewScreen(dataUrl) {
   const photo = document.getElementById('review-photo');
   photo.innerHTML = `<img src="${dataUrl}" alt="Recibo">`;
@@ -583,6 +601,7 @@ function showReviewScreen(dataUrl) {
       ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
       : 'La IA extrajo esta información. Corregí si algo está mal.';
   }
+}
 }
  
 // ─── AI PROCESSING ────────────────────────────────────────────────────────────
