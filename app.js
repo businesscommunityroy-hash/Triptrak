@@ -699,29 +699,40 @@ async function saveExpense() {
     btn.textContent = 'Guardar recibo →';
     return alert('Seleccioná un tipo de gasto.');
   }
- 
+
   let category = state.selectedCategory;
   if (category === '📦 Otro') {
     const otroVal = document.getElementById('otro-input') ? document.getElementById('otro-input').value.trim() : '';
-    if (!otroVal) return alert('Escribí el concepto del gasto.');
+    if (!otroVal) {
+      btn.disabled = false;
+      btn.textContent = 'Guardar recibo →';
+      return alert('Escribí el concepto del gasto.');
+    }
     category = '📦 ' + otroVal;
   }
- 
+
   const datetime = document.getElementById('field-datetime').value;
   const amountOrig = document.getElementById('field-amount').value;
   const currency = document.getElementById('field-currency').value;
   const amountUSD = document.getElementById('field-usd').value;
   const description = document.getElementById('field-description').value;
- 
-  if (!amountOrig) return alert('Ingresá el monto.');
- if (state.activeTrip) {
+
+  if (!amountOrig) {
+    btn.disabled = false;
+    btn.textContent = 'Guardar recibo →';
+    return alert('Ingresá el monto.');
+  }
+
+  if (state.activeTrip) {
     const expDate = document.getElementById('field-datetime').value;
     const date = expDate ? expDate.split(',')[0].trim() : '';
     if (date && (date < state.activeTrip.start || date > state.activeTrip.end)) {
-      const continuar = confirm(`⚠️ La fecha está fuera del rango del viaje (${state.activeTrip.start} → ${state.activeTrip.end}). ¿Querés continuar igual?`);
-      if (!continuar) return;
+      btn.disabled = false;
+      btn.textContent = 'Guardar recibo →';
+      return alert(`⚠️ La fecha está fuera del rango del viaje (${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}). No podés guardar este gasto.`);
     }
   }
+
   const today = new Date().toISOString().split('T')[0];
   const expense = {
     id: Date.now(),
@@ -735,16 +746,21 @@ async function saveExpense() {
     category,
     image: null,
   };
- 
+
   state.expenses.push(expense);
-    åsave();
+  save();
+
   if (state.activeTrip.sheetId) {
     await appendExpenseToSheet(expense, state.activeTrip.sheetId);
   }
+
   if (state.pendingImage && state.activeTrip.driveFolderId) {
     await uploadPhotoToDrive(expense, state.pendingImage.dataUrl);
   }
+
   state.pendingImage = null;
+  btn.disabled = false;
+  btn.textContent = 'Guardar recibo →';
   renderHome();
   showScreen('home');
   alert('Gasto guardado.');
@@ -937,12 +953,9 @@ async function saveManualExpense() {
   if (state.activeTrip) {
     const date = datetimeVal;
     if (date < state.activeTrip.start || date > state.activeTrip.end) {
-      const continuar = confirm(`⚠️ La fecha está fuera del rango del viaje (${state.activeTrip.start} → ${state.activeTrip.end}). ¿Querés continuar igual?`);
-      if (!continuar) {
-        btn.disabled = false;
-        btn.textContent = 'Guardar gasto →';
-        return;
-      }
+      btn.disabled = false;
+      btn.textContent = 'Guardar gasto →';
+      return alert(`⚠️ La fecha está fuera del rango del viaje (${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}). No podés guardar este gasto.`);
     }
   }
 
