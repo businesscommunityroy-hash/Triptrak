@@ -584,7 +584,6 @@ function compressImage(dataUrl, callback) {
   };
   img.src = dataUrl;
 }
-
 function showReviewScreen(dataUrl) {
   const photo = document.getElementById('review-photo');
   photo.innerHTML = `<img src="${dataUrl}" alt="Recibo">`;
@@ -602,7 +601,7 @@ function showReviewScreen(dataUrl) {
       : 'La IA extrajo esta información. Corregí si algo está mal.';
   }
 }
-}
+
  
 // ─── AI PROCESSING ────────────────────────────────────────────────────────────
 async function processImageWithAI(dataUrl) {
