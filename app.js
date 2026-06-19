@@ -192,10 +192,21 @@ function bindEvents() {
     showScreen('analyze');
   });
  
-  // HOME → NEW TRIP
-  document.getElementById('btn-new-trip').addEventListener('click', () => openModal('modal-new-trip'));
+// HOME → NEW TRIP
+  document.getElementById('btn-new-trip').addEventListener('click', () => {
+    openModal('modal-new-trip');
+  });
   document.getElementById('btn-cancel-trip').addEventListener('click', () => closeModal('modal-new-trip'));
- 
+
+  document.getElementById('new-trip-start').addEventListener('change', (e) => {
+    const startDate = e.target.value;
+    if (startDate) {
+      const nextDay = new Date(startDate + 'T00:00:00');
+      nextDay.setDate(nextDay.getDate() + 1);
+      document.getElementById('new-trip-end').value = nextDay.toISOString().split('T')[0];
+    }
+    checkTripOverlap();
+  });
   // HOME → CHANGE TRIP
 document.getElementById('btn-change-trip').addEventListener('click', () => {
     renderChangeTripModal();
@@ -229,8 +240,7 @@ document.getElementById('btn-change-trip').addEventListener('click', () => {
     document.getElementById('reminder').style.display = 'none';
   });
  
-  // NEW TRIP — check overlap on date change
-  document.getElementById('new-trip-start').addEventListener('change', checkTripOverlap);
+// NEW TRIP — check overlap on date change
   document.getElementById('new-trip-end').addEventListener('change', checkTripOverlap);
  
   // CREATE TRIP
