@@ -78,6 +78,15 @@ function showScreen(id) {
 // ─── MODAL ───────────────────────────────────────────────────────────────────
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function showToast(message, icon = '✅') {
+  const toast = document.getElementById('toast');
+  document.getElementById('toast-icon').textContent = icon;
+  document.getElementById('toast-message').textContent = message;
+  toast.style.display = 'flex';
+  setTimeout(() => {
+    toast.style.display = 'none';
+  }, 2500);
+}
 function showLoading(text) {
   document.getElementById('loading-text').textContent = text;
   document.getElementById('loading-overlay').style.display = 'flex';
@@ -437,25 +446,27 @@ function renderHome() {
 function renderStatsGrid() {
   const grid = document.getElementById('stats-grid');
   if (!state.activeTrip) { grid.innerHTML = ''; return; }
- 
+
   const expenses = getTripExpenses(state.activeTrip.id);
   const totals = getCategoryTotals(expenses);
   const activeCats = Object.keys(totals);
- 
+
   if (activeCats.length === 0) {
     grid.innerHTML = '<p style="color:var(--text2);font-size:13px;padding:0 0 8px;">Aún no hay gastos registrados.</p>';
     return;
   }
- 
-  const icons = { '🍽️ Comida': '🍽️', '🏨 Hotel': '🏨', '✈️ Vuelo': '✈️', '⛽ Combustible': '⛽', '🚕 Transporte': '🚕', '🎭 Entretenimiento': '🎭', '📦 Otro': '📦' };
- 
-  grid.innerHTML = activeCats.map(cat => `
+
+  grid.innerHTML = activeCats.map(cat => {
+    const match = cat.match(/^([^\sa-zA-ZÀ-ÿ]+)\s*/);
+    const icon = match ? match[1] : '📦';
+    return `
     <div class="stat-card">
-      <div class="stat-icon">${icons[cat] || '📦'}</div>
+      <div class="stat-icon">${icon}</div>
       <p class="stat-val">$${totals[cat].toFixed(2)}</p>
-      <p class="stat-label">${cat.replace(/^[^\s]+\s/, '')}</p>
+      <p class="stat-label">${cat.replace(/^[^a-zA-ZÀ-ÿ]+/, '')}</p>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
  
 function renderExpensesList() {
@@ -789,7 +800,7 @@ async function saveExpense() {
   btn.textContent = 'Guardar recibo →';
   renderHome();
   showScreen('home');
-  alert('Gasto guardado.');
+  showToast('Gasto guardado correctamente');
 }
  
 // ─── ANALYZE ─────────────────────────────────────────────────────────────────
@@ -1028,7 +1039,7 @@ async function saveManualExpense() {
   btn.textContent = 'Guardar gasto →';
   renderHome();
   showScreen('home');
-  alert('Gasto guardado.');
+  showToast('Gasto guardado correctamente');
 }
 
 // ─── START ────────────────────────────────────────────────────────────────────
@@ -1442,7 +1453,7 @@ async function deleteTrip(id) {
   save();
   renderManageTrips();
   renderHome();
-  alert(`Viaje "${trip.name}" eliminado.`);
+  showToast(`Viaje "${trip.name}" eliminado`, '🗑️');
 }
 
 async function editTrip(id) {
@@ -1630,7 +1641,7 @@ async function deleteExpense(id) {
 
    renderTripExpensesScreen(trip);
    renderHome();
-  alert('Gasto eliminado y sincronizado con el Sheet.');
+   showToast('Gasto eliminado correctamente', '🗑️');
 }
 async function findRowByExpenseId(sheetId, expenseId) {
   if (!googleToken) return null;

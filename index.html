@@ -364,6 +364,10 @@
   <p id="loading-text" style="color:var(--text); font-size:14px;">Creando viaje...</p>
 </div>
 <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+<div id="toast" style="display:none; position:fixed; bottom:90px; left:50%; transform:translateX(-50%); background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:12px 20px; color:var(--text); font-size:14px; z-index:500; box-shadow:0 4px 20px rgba(0,0,0,0.4); align-items:center; gap:10px; max-width:90%;">
+  <span id="toast-icon">✅</span>
+  <span id="toast-message"></span>
+</div>
   <script src="app.js"></script>
 </body>
 </html>
