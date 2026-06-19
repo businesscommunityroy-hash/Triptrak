@@ -161,7 +161,7 @@ body {
 }
  
 /* FORM */
-.field { margin-bottom: 16px; }
+.field { margin-bottom: 20px; }
 .field label {
   display: block;
   font-size: 12px;
@@ -597,3 +597,7 @@ body {
   font-size: 14px;
 }
 .empty-state p { margin-top: 8px; }
+@media (max-width: 480px) {
+  .field { margin-bottom: 24px; }
+  .field input { padding: 14px 16px; }
+}
