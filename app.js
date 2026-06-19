@@ -1041,7 +1041,7 @@ async function createCalendarEvent(trip, token) {
     summary: `✈️ ${trip.name}`,
     start: { date: trip.start },
     end: { date: trip.end },
-    description: 'Viaje registrado en TripTrack.',
+    description: 'Viaje registrado en TripTrak.',
   };
 
   try {
@@ -1095,9 +1095,9 @@ async function createDriveFolder(trip) {
   }
 
   try {
-    // Buscar si ya existe la carpeta TripTrack
+    // Buscar si ya existe la carpeta TripTrak
     const searchRes = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=name='TripTrack' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      `https://www.googleapis.com/drive/v3/files?q=name='TripTrak' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       { headers: { Authorization: `Bearer ${googleToken}` } }
     );
     const searchData = await searchRes.json();
@@ -1106,7 +1106,7 @@ async function createDriveFolder(trip) {
     if (searchData.files && searchData.files.length > 0) {
       rootFolderId = searchData.files[0].id;
     } else {
-      // Crear carpeta raíz TripTrack
+      // Crear carpeta raíz TripTrak
       const rootRes = await fetch('https://www.googleapis.com/drive/v3/files', {
         method: 'POST',
         headers: {
@@ -1114,7 +1114,7 @@ async function createDriveFolder(trip) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: 'TripTrack',
+          name: 'TripTrak',
           mimeType: 'application/vnd.google-apps.folder',
         }),
       });
@@ -1122,7 +1122,7 @@ async function createDriveFolder(trip) {
       rootFolderId = rootData.id;
     }
 
-    // Crear carpeta del viaje dentro de TripTrack
+    // Crear carpeta del viaje dentro de TripTrak
     const tripRes = await fetch('https://www.googleapis.com/drive/v3/files', {
       method: 'POST',
       headers: {
