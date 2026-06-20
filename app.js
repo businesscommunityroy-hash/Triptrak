@@ -241,9 +241,13 @@ document.getElementById('btn-change-trip').addEventListener('click', () => {
  
 
   // GOOGLE CALENDAR
-  document.getElementById('btn-add-calendar').addEventListener('click', () => {
+  document.getElementById('btn-add-calendar').addEventListener('click', async () => {
     if (!state.activeTrip) return alert('No hay viaje activo.');
-    addTripToGoogleCalendar(state.activeTrip);
+    if (state.activeTrip.calendarEventId) {
+      await removeFromGoogleCalendar(state.activeTrip);
+    } else {
+      addTripToGoogleCalendar(state.activeTrip);
+    }
   });
   document.getElementById('btn-reminder-close').addEventListener('click', () => {
     document.getElementById('reminder').style.display = 'none';
@@ -438,10 +442,20 @@ function renderHome() {
 
   }
  
-  renderStatsGrid();
+ renderStatsGrid();
   renderExpensesList();
   checkReminder();
+
+  const calBtn = document.getElementById('btn-add-calendar');
+  if (calBtn) {
+    if (trip && trip.calendarEventId) {
+      calBtn.textContent = '🗑️ Quitar de Calendar';
+    } else {
+      calBtn.textContent = '📅 Agregar a Calendar';
+    }
+  }
 }
+
  
 function renderStatsGrid() {
   const grid = document.getElementById('stats-grid');
@@ -1058,10 +1072,14 @@ function addTripToGoogleCalendar(trip) {
 }
 
 async function createCalendarEvent(trip, token) {
+  const endDate = new Date(trip.end + 'T00:00:00');
+  endDate.setDate(endDate.getDate() + 1);
+  const endDateStr = endDate.toISOString().split('T')[0];
+
   const event = {
     summary: `✈️ ${trip.name}`,
     start: { date: trip.start },
-    end: { date: trip.end },
+    end: { date: endDateStr },
     description: 'Viaje registrado en TripTrak.',
   };
 
@@ -1077,7 +1095,13 @@ async function createCalendarEvent(trip, token) {
 
     const data = await res.json();
     if (data.id) {
-      alert(`✅ Viaje "${trip.name}" agregado a Google Calendar.`);
+      trip.calendarEventId = data.id;
+      const idx = state.trips.findIndex(t => t.id === trip.id);
+      if (idx !== -1) state.trips[idx] = trip;
+      if (state.activeTrip && state.activeTrip.id === trip.id) state.activeTrip = trip;
+      save();
+      showToast(`Viaje "${trip.name}" agregado a Calendar`, '📅');
+      renderHome();
     } else {
       alert('No se pudo crear el evento. Intentá de nuevo.');
     }
@@ -1480,7 +1504,17 @@ async function deleteTrip(id) {
       console.error('Error eliminando carpeta en Drive:', err);
     }
   }
-
+// Eliminar evento de Google Calendar
+  if (trip.calendarEventId) {
+    try {
+      await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${trip.calendarEventId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${googleToken}` },
+      });
+    } catch (err) {
+      console.error('Error eliminando evento de Calendar:', err);
+    }
+  }
   // Eliminar gastos del viaje
   state.expenses = state.expenses.filter(e => e.tripId !== id);
 
@@ -1804,5 +1838,39 @@ function removeManualPhoto() {
   document.getElementById('manual-photo-thumb').src = '';
   document.getElementById('photo-fullscreen-img').src = '';
   document.getElementById('manual-upload-zone').style.display = 'block';
+}
+async function removeFromGoogleCalendar(trip) {
+  if (!googleToken && window._driveToken) googleToken = window._driveToken;
+  if (!googleToken) {
+    await new Promise((resolve) => {
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: GOOGLE_SCOPES,
+        callback: (response) => {
+          if (!response.error) googleToken = response.access_token;
+          resolve();
+        },
+      });
+      client.requestAccessToken();
+    });
+  }
+
+  try {
+    await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${trip.calendarEventId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${googleToken}` },
+    });
+
+    trip.calendarEventId = null;
+    const idx = state.trips.findIndex(t => t.id === trip.id);
+    if (idx !== -1) state.trips[idx] = trip;
+    if (state.activeTrip && state.activeTrip.id === trip.id) state.activeTrip = trip;
+    save();
+    showToast('Quitado de Google Calendar', '🗑️');
+    renderHome();
+  } catch (err) {
+    console.error('Error quitando evento de Calendar:', err);
+    alert('No se pudo quitar el evento. Intentá de nuevo.');
+  }
 }
 init();
