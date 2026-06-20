@@ -1310,7 +1310,49 @@ async function createTripSheet(trip) {
         values: [['Fecha', 'Tipo de gasto', 'Descripción', 'Moneda original', 'Monto original', 'Monto USD', 'Notas', 'Recibo', 'ID (no editar)']],
       }),
     });
-
+// Formato visual de los headers
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${googleToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        requests: [
+          {
+            repeatCell: {
+              range: { sheetId: 0, startRowIndex: 0, endRowIndex: 1 },
+              cell: {
+                userEnteredFormat: {
+                  backgroundColor: { red: 0.31, green: 0.5, blue: 1.0 },
+                  textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
+                  horizontalAlignment: 'CENTER',
+                },
+              },
+              fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)',
+            },
+          },
+          {
+            updateSheetProperties: {
+              properties: { sheetId: 0, gridProperties: { frozenRowCount: 1 } },
+              fields: 'gridProperties.frozenRowCount',
+            },
+          },
+          {
+            setBasicFilter: {
+              filter: {
+                range: { sheetId: 0, startRowIndex: 0, startColumnIndex: 0, endColumnIndex: 9 },
+              },
+            },
+          },
+          {
+            autoResizeDimensions: {
+              dimensions: { sheetId: 0, dimension: 'COLUMNS', startIndex: 0, endIndex: 9 },
+            },
+          },
+        ],
+      }),
+    });
     // Mover el Sheet a la carpeta del viaje
     await fetch(`https://www.googleapis.com/drive/v3/files/${sheetId}?addParents=${trip.driveFolderId}&removeParents=root`, {
       method: 'PATCH',
