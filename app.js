@@ -1169,7 +1169,7 @@ async function createDriveFolder(trip) {
 
     await createTripSheet(trip);
 
-    alert(`✅ Viaje "${trip.name}" creado y carpeta en Drive lista.`);
+    showToast(`Viaje "${trip.name}" creado correctamente`, '✅');
   } catch (err) {
     console.error(err);
     alert('Viaje creado pero no se pudo crear la carpeta en Drive. Intentá de nuevo.');
