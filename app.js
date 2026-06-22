@@ -32,8 +32,6 @@ const state = {
   pendingImage: null,
   selectedCategory: null,
 };
- 
-// ─── PERSISTENCE ─────────────────────────────────────────────────────────────
 function save() {
   const expensesWithoutImages = state.expenses.map(e => ({ ...e, image: null }));
   try {
@@ -55,8 +53,8 @@ function save() {
       categories: state.categories,
     }));
   }
-}
- 
+  saveDataToDrive();
+} 
 function load() {
   const data = localStorage.getItem('triptrack');
   if (!data) return;
@@ -121,11 +119,10 @@ function autoDetectTrip() {
     save();
   }
 }
- 
 // ─── BIND EVENTS ─────────────────────────────────────────────────────────────
 function bindEvents() {
  
-  // LOGIN
+// LOGIN
   document.getElementById('btn-login').addEventListener('click', () => {
     const client = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
@@ -135,8 +132,19 @@ function bindEvents() {
         googleToken = response.access_token;
         const userInfo = await fetchGoogleUserInfo(googleToken);
         googleUser = userInfo;
+
+        showLoading('Sincronizando con Drive...');
+        const driveData = await loadDataFromDrive();
+        if (driveData) {
+          state.trips = driveData.trips || [];
+          state.expenses = driveData.expenses || [];
+          state.categories = driveData.categories || state.categories;
+        }
+        hideLoading();
+
         if (state.user && state.user.email === userInfo.email) {
           updateAvatars();
+          autoDetectTrip();
           renderHome();
           showScreen('home');
         } else {
@@ -160,7 +168,7 @@ function bindEvents() {
     const name = document.getElementById('setup-name').value.trim();
     const company = document.getElementById('setup-company').value.trim();
     if (!name) return alert('Ingresá tu nombre.');
-    state.user = { name, company, initials: getInitials(name) };
+    state.user = { name, company, initials: getInitials(name), email: googleUser ? googleUser.email : '' };
     save();
     updateAvatars();
     renderHome();
@@ -428,18 +436,20 @@ function renderHome() {
   const trip = state.activeTrip;
   const nameEl = document.getElementById('home-trip-name');
   const datesEl = document.getElementById('home-trip-dates');
- 
-  if (!trip) {
-    nameEl.textContent = 'No hay viajes disponibles';
-    datesEl.textContent = 'Creá un nuevo viaje para empezar';
+if (!trip) {
+    if (state.trips.length > 0) {
+      nameEl.textContent = 'No hay viaje en curso el dia de hoy';
+      datesEl.innerHTML = `Tienes ${state.trips.length} viaje(s) creados.<br>Click en "Cambiar viaje" para seleccionar uno.`;
+    } else {
+      nameEl.textContent = 'No hay viajes disponibles';
+      datesEl.textContent = 'Creá un nuevo viaje para empezar';
+    }
   } else {
     const { total, elapsed } = tripDayInfo(trip);
     nameEl.textContent = 'Viaje: ' + trip.name;
     const isUpcoming = trip.start > new Date().toISOString().split('T')[0];
     const statusText = isUpcoming ? 'Próximo' : `En curso · Día ${elapsed} de ${total}`;
     datesEl.innerHTML = `Fechas: ${formatDate(trip.start)} → ${formatDate(trip.end)}<br>Estado: ${statusText}`;
-
-
   }
  
  renderStatsGrid();
@@ -1871,6 +1881,119 @@ async function removeFromGoogleCalendar(trip) {
   } catch (err) {
     console.error('Error quitando evento de Calendar:', err);
     alert('No se pudo quitar el evento. Intentá de nuevo.');
+  }
+}
+// ─── DRIVE JSON SOURCE OF TRUTH ────────────────────────────────────────────────
+async function findOrCreateDataFile() {
+  if (!googleToken) return null;
+
+  try {
+    // Buscar carpeta raíz TripTrak
+    const searchFolder = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=name='TripTrak' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      { headers: { Authorization: `Bearer ${googleToken}` } }
+    );
+    const folderData = await searchFolder.json();
+
+    let rootFolderId;
+    if (folderData.files && folderData.files.length > 0) {
+      rootFolderId = folderData.files[0].id;
+    } else {
+      const createFolder = await fetch('https://www.googleapis.com/drive/v3/files', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${googleToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'TripTrak',
+          mimeType: 'application/vnd.google-apps.folder',
+        }),
+      });
+      const newFolder = await createFolder.json();
+      rootFolderId = newFolder.id;
+    }
+
+    // Buscar el archivo de datos dentro de esa carpeta
+    const searchFile = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=name='triptrak-data.json' and '${rootFolderId}' in parents and trashed=false`,
+      { headers: { Authorization: `Bearer ${googleToken}` } }
+    );
+    const fileData = await searchFile.json();
+
+    if (fileData.files && fileData.files.length > 0) {
+      return { fileId: fileData.files[0].id, rootFolderId };
+    }
+
+    // No existe, crearlo vacío
+    const emptyData = { trips: [], expenses: [], categories: state.categories };
+    const metadata = {
+      name: 'triptrak-data.json',
+      parents: [rootFolderId],
+      mimeType: 'application/json',
+    };
+
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', new Blob([JSON.stringify(emptyData)], { type: 'application/json' }));
+
+    const createFile = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${googleToken}` },
+      body: form,
+    });
+    const newFile = await createFile.json();
+
+    return { fileId: newFile.id, rootFolderId };
+
+  } catch (err) {
+    console.error('Error en findOrCreateDataFile:', err);
+    return null;
+  }
+}
+async function loadDataFromDrive() {
+  const fileInfo = await findOrCreateDataFile();
+  if (!fileInfo) return null;
+
+  try {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileInfo.fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${googleToken}` },
+    });
+    const data = await res.json();
+    window._driveFileId = fileInfo.fileId;
+    return data;
+  } catch (err) {
+    console.error('Error leyendo JSON de Drive:', err);
+    return null;
+  }
+}
+async function saveDataToDrive() {
+  if (!googleToken && window._driveToken) googleToken = window._driveToken;
+  if (!googleToken) return;
+
+  if (!window._driveFileId) {
+    const fileInfo = await findOrCreateDataFile();
+    if (!fileInfo) return;
+    window._driveFileId = fileInfo.fileId;
+  }
+
+  const dataToSave = {
+    trips: state.trips,
+    expenses: state.expenses.map(e => ({ ...e, image: null })),
+    categories: state.categories,
+  };
+
+  try {
+    await fetch(`https://www.googleapis.com/upload/drive/v3/files/${window._driveFileId}?uploadType=media`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${googleToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(dataToSave),
+    });
+  } catch (err) {
+    console.error('Error guardando JSON en Drive:', err);
   }
 }
 init();
