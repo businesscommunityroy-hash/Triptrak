@@ -130,6 +130,8 @@ function bindEvents() {
       callback: async (response) => {
         if (response.error) return alert('Error al iniciar sesión con Google.');
         googleToken = response.access_token;
+        tokenExpiresAt = Date.now() + 55 * 60 * 1000;
+        window._driveToken = googleToken;
         const userInfo = await fetchGoogleUserInfo(googleToken);
         googleUser = userInfo;
 
@@ -1068,19 +1070,11 @@ async function saveManualExpense() {
 
 // ─── START ────────────────────────────────────────────────────────────────────
 // ─── GOOGLE CALENDAR ─────────────────────────────────────────────────────────
-function addTripToGoogleCalendar(trip) {
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope: GOOGLE_SCOPES,
-    callback: async (response) => {
-      if (response.error) return alert('Error al conectar con Google.');
-      googleToken = response.access_token;
-      await createCalendarEvent(trip, googleToken);
-    },
-  });
-  client.requestAccessToken();
+async function addTripToGoogleCalendar(trip) {
+  const token = await getValidToken();
+  if (!token) return alert('Error al conectar con Google.');
+  await createCalendarEvent(trip, token);
 }
-
 async function createCalendarEvent(trip, token) {
   const endDate = new Date(trip.end + 'T00:00:00');
   endDate.setDate(endDate.getDate() + 1);
@@ -1128,21 +1122,7 @@ async function fetchGoogleUserInfo(token) {
 }
 // ─── GOOGLE DRIVE ─────────────────────────────────────────────────────────────
 async function createDriveFolder(trip) {
-  if (!googleToken) {
-    await new Promise((resolve) => {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: GOOGLE_SCOPES,
-        callback: (response) => {
-          if (!response.error) {
-            googleToken = response.access_token;
-          }
-          resolve();
-        },
-      });
-      client.requestAccessToken();
-    });
-  }
+  await getValidToken();
 
   if (!googleToken) {
     alert('No se pudo conectar con Google. Intentá de nuevo.');
@@ -1209,34 +1189,9 @@ async function createDriveFolder(trip) {
     alert('Viaje creado pero no se pudo crear la carpeta en Drive. Intentá de nuevo.');
   }
 }
-function silentLogin() {
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope: GOOGLE_SCOPES,
-    prompt: '',
-    callback: (response) => {
-      if (!response.error) {
-        googleToken = response.access_token;
-      }
-    },
-  });
-  client.requestAccessToken();
-}
+
 async function uploadPhotoToDrive(expense, dataUrl) {
-  if (!googleToken && window._driveToken) googleToken = window._driveToken;
-  if (!googleToken) {
-    await new Promise((resolve) => {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: GOOGLE_SCOPES,
-        callback: (response) => {
-          if (!response.error) googleToken = response.access_token;
-          resolve();
-        },
-      });
-      client.requestAccessToken();
-    });
-  }
+  await getValidToken();
   if (!googleToken) return;
 
   try {
@@ -1311,8 +1266,8 @@ function selectTrip(id) {
 }
 // ─── GOOGLE SHEETS ───────────────────────────────────────────────────────────
 async function createTripSheet(trip) {
+  await getValidToken();
   if (!googleToken) return;
-
   try {
     // Crear el Google Sheet
     const createRes = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
@@ -1408,20 +1363,9 @@ async function createTripSheet(trip) {
     console.error('Error creando Sheet:', err);
   }
 }
+
 async function appendExpenseToSheet(expense, sheetId) {
-  if (!googleToken) {
-    await new Promise((resolve) => {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: GOOGLE_SCOPES,
-        callback: (response) => {
-          if (!response.error) googleToken = response.access_token;
-          resolve();
-        },
-      });
-      client.requestAccessToken();
-    });
-  }
+  await getValidToken();
   if (!window._driveToken) window._driveToken = googleToken;
   if (!googleToken) return;
 
@@ -1490,21 +1434,8 @@ async function deleteTrip(id) {
   if (!confirm1) return;
 
   // Eliminar carpeta en Drive
+  await getValidToken();
   if (trip.driveFolderId) {
-    if (!googleToken && window._driveToken) googleToken = window._driveToken;
-    if (!googleToken) {
-      await new Promise((resolve) => {
-        const client = google.accounts.oauth2.initTokenClient({
-          client_id: GOOGLE_CLIENT_ID,
-          scope: GOOGLE_SCOPES,
-          callback: (response) => {
-            if (!response.error) googleToken = response.access_token;
-            resolve();
-          },
-        });
-        client.requestAccessToken();
-      });
-    }
     try {
       await fetch(`https://www.googleapis.com/drive/v3/files/${trip.driveFolderId}`, {
         method: 'DELETE',
@@ -1571,21 +1502,7 @@ async function editTrip(id) {
   save();
 
   showLoading('Actualizando Drive y Sheet...');
-
-  if (!googleToken && window._driveToken) googleToken = window._driveToken;
-  if (!googleToken) {
-    await new Promise((resolve) => {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: GOOGLE_SCOPES,
-        callback: (response) => {
-          if (!response.error) googleToken = response.access_token;
-          resolve();
-        },
-      });
-      client.requestAccessToken();
-    });
-  }
+  await getValidToken();
 
   if (googleToken) {
     // Renombrar carpeta en Drive
@@ -1747,21 +1664,7 @@ async function findRowByExpenseId(sheetId, expenseId) {
   }
 }
 async function updateExpenseInSheet(expense, sheetId) {
-  console.log('Actualizando sheet, sheetId:', sheetId, 'expenseId:', expense.id);
-  if (!googleToken && window._driveToken) googleToken = window._driveToken;
-  if (!googleToken) {
-    await new Promise((resolve) => {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: GOOGLE_SCOPES,
-        callback: (response) => {
-          if (!response.error) googleToken = response.access_token;
-          resolve();
-        },
-      });
-      client.requestAccessToken();
-    });
-  }
+  await getValidToken();
   if (!googleToken) return;
 
   const rowNum = await findRowByExpenseId(sheetId, expense.id);
@@ -1801,7 +1704,7 @@ async function updateExpenseInSheet(expense, sheetId) {
 }
 
 async function deleteExpenseFromSheet(expenseId, sheetId) {
-  if (!googleToken && window._driveToken) googleToken = window._driveToken;
+  await getValidToken();
   if (!googleToken) return;
 
   const rowNum = await findRowByExpenseId(sheetId, expenseId);
@@ -1850,20 +1753,7 @@ function removeManualPhoto() {
   document.getElementById('manual-upload-zone').style.display = 'block';
 }
 async function removeFromGoogleCalendar(trip) {
-  if (!googleToken && window._driveToken) googleToken = window._driveToken;
-  if (!googleToken) {
-    await new Promise((resolve) => {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: GOOGLE_SCOPES,
-        callback: (response) => {
-          if (!response.error) googleToken = response.access_token;
-          resolve();
-        },
-      });
-      client.requestAccessToken();
-    });
-  }
+  await getValidToken();
 
   try {
     await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${trip.calendarEventId}`, {
@@ -1996,5 +1886,64 @@ async function saveDataToDrive() {
   } catch (err) {
     console.error('Error guardando JSON en Drive:', err);
   }
+}
+// ─── CENTRALIZED TOKEN MANAGEMENT ──────────────────────────────────────────────
+let tokenExpiresAt = 0;
+
+async function getValidToken() {
+  const now = Date.now();
+
+  // Si tenemos un token y todavía no expiró (con margen de 5 min), lo reusamos
+  if (googleToken && now < tokenExpiresAt) {
+    return googleToken;
+  }
+
+  // Intentar renovación silenciosa primero (sin popup visible)
+  const silentToken = await new Promise((resolve) => {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: GOOGLE_SCOPES,
+      prompt: '',
+      callback: (response) => {
+        if (response.error) {
+          resolve(null);
+        } else {
+          resolve(response.access_token);
+        }
+      },
+    });
+    client.requestAccessToken();
+  });
+
+  if (silentToken) {
+    googleToken = silentToken;
+    tokenExpiresAt = Date.now() + 55 * 60 * 1000; // 55 min de margen
+    window._driveToken = googleToken;
+    return googleToken;
+  }
+
+  // Si la renovación silenciosa falló, pedir con popup visible
+  const visibleToken = await new Promise((resolve) => {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: GOOGLE_SCOPES,
+      callback: (response) => {
+        if (response.error) {
+          resolve(null);
+        } else {
+          resolve(response.access_token);
+        }
+      },
+    });
+    client.requestAccessToken();
+  });
+
+  if (visibleToken) {
+    googleToken = visibleToken;
+    tokenExpiresAt = Date.now() + 55 * 60 * 1000;
+    window._driveToken = googleToken;
+  }
+
+  return googleToken;
 }
 init();
