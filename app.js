@@ -1981,6 +1981,7 @@ async function saveDataToDrive() {
     trips: state.trips,
     expenses: state.expenses.map(e => ({ ...e, image: null })),
     categories: state.categories,
+    profile: { name: state.user.name, company: state.user.company, email: state.user.email },
   };
 
   try {
