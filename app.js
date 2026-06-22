@@ -405,6 +405,17 @@ document.getElementById('btn-manual').addEventListener('click', () => {
   document.getElementById('new-category-input').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') addCategory();
   });
+
+  document.getElementById('btn-logout').addEventListener('click', () => {
+    const confirmLogout = confirm('¿Cerrar sesión? Vas a tener que volver a iniciar sesión con Google.');
+    if (!confirmLogout) return;
+    localStorage.clear();
+    googleToken = null;
+    window._driveToken = null;
+    window._driveFileId = null;
+    tokenExpiresAt = 0;
+    location.reload();
+  });
 }
  
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
