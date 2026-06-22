@@ -144,7 +144,19 @@ function bindEvents() {
         }
         hideLoading();
 
-        if (state.user && state.user.email === userInfo.email) {
+        const hasLocalProfile = state.user && state.user.email === userInfo.email;
+        const hasDriveProfile = driveData && driveData.profile && driveData.profile.email === userInfo.email;
+
+        if (hasLocalProfile || hasDriveProfile) {
+          if (!hasLocalProfile && hasDriveProfile) {
+            state.user = {
+              name: driveData.profile.name,
+              company: driveData.profile.company,
+              email: driveData.profile.email,
+              initials: getInitials(driveData.profile.name),
+            };
+            save();
+          }
           updateAvatars();
           autoDetectTrip();
           renderHome();
