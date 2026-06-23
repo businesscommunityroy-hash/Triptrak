@@ -273,6 +273,12 @@ body {
 }
 .trip-dates { font-size: 13px; color: #E5E7EB; margin-top: 4px; line-height: 1.5; }
 .trip-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.trip-actions .btn-sm, .trip-actions .btn-primary {
+  flex: 1 1 auto;
+  min-width: 110px;
+  text-align: center;
+  justify-content: center;
+}
  
 /* STATS */
 .stats-grid {

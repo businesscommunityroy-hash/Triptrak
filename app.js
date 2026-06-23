@@ -238,8 +238,16 @@ function bindEvents() {
     }
     checkTripOverlap();
   });
-  // HOME → CHANGE TRIP
-document.getElementById('btn-change-trip').addEventListener('click', () => {
+// HOME → CHANGE TRIP
+document.getElementById('btn-change-trip').addEventListener('click', async () => {
+    showLoading('Sincronizando con Drive...');
+    const driveData = await loadDataFromDrive();
+    if (driveData) {
+      state.trips = driveData.trips || [];
+      state.expenses = driveData.expenses || [];
+      state.categories = driveData.categories || state.categories;
+    }
+    hideLoading();
     renderChangeTripModal();
     openModal('modal-change-trip');
   });
@@ -261,7 +269,25 @@ document.getElementById('btn-change-trip').addEventListener('click', () => {
   });
 
  
-
+document.getElementById('btn-sync').addEventListener('click', async () => {
+    showLoading('Sincronizando con Drive...');
+    const driveData = await loadDataFromDrive();
+    if (driveData) {
+      state.trips = driveData.trips || [];
+      state.expenses = driveData.expenses || [];
+      state.categories = driveData.categories || state.categories;
+      if (driveData.profile) {
+        state.user = { ...state.user, ...driveData.profile, initials: getInitials(driveData.profile.name) };
+      }
+      autoDetectTrip();
+      renderHome();
+      updateAvatars();
+      showToast('Sincronizado correctamente', '🔄');
+    } else {
+      alert('No se pudo sincronizar. Intentá de nuevo.');
+    }
+    hideLoading();
+  });
   // GOOGLE CALENDAR
   document.getElementById('btn-add-calendar').addEventListener('click', async () => {
     if (!state.activeTrip) return alert('No hay viaje activo.');
@@ -355,7 +381,16 @@ document.getElementById('btn-change-trip').addEventListener('click', () => {
     showScreen('categories');
   });
  // MANUAL EXPENSE
-document.getElementById('btn-manual').addEventListener('click', () => {
+document.getElementById('btn-manual').addEventListener('click', async () => {
+    showLoading('Sincronizando con Drive...');
+    const driveData = await loadDataFromDrive();
+    if (driveData) {
+      state.trips = driveData.trips || [];
+      state.expenses = driveData.expenses || [];
+      state.categories = driveData.categories || state.categories;
+      autoDetectTrip();
+    }
+    hideLoading();
     renderManualCategoryChips();
     const now = new Date();
     const localDate = new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -393,8 +428,16 @@ document.getElementById('btn-manual').addEventListener('click', () => {
   });
   document.getElementById('btn-save-manual').addEventListener('click', saveManualExpense);
   document.getElementById('btn-trip-expenses-back').addEventListener('click', () => showScreen('manage-trips'));
-  // MANAGE TRIPS
-  document.getElementById('btn-manage-trips').addEventListener('click', () => {
+// MANAGE TRIPS
+  document.getElementById('btn-manage-trips').addEventListener('click', async () => {
+    showLoading('Sincronizando con Drive...');
+    const driveData = await loadDataFromDrive();
+    if (driveData) {
+      state.trips = driveData.trips || [];
+      state.expenses = driveData.expenses || [];
+      state.categories = driveData.categories || state.categories;
+    }
+    hideLoading();
     renderManageTrips();
     showScreen('manage-trips');
   });
@@ -1798,6 +1841,7 @@ async function removeFromGoogleCalendar(trip) {
 }
 // ─── DRIVE JSON SOURCE OF TRUTH ────────────────────────────────────────────────
 async function findOrCreateDataFile() {
+  await getValidToken();
   if (!googleToken) return null;
 
   try {
