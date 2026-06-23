@@ -9,6 +9,61 @@ const GOOGLE_SCOPES = [
 ].join(' ');
 let googleToken = null;
 let googleUser = null;
+let tokenExpiresAt = 0;
+
+async function getValidToken() {
+  const now = Date.now();
+
+  if (googleToken && now < tokenExpiresAt) {
+    return googleToken;
+  }
+
+  const silentToken = await new Promise((resolve) => {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: GOOGLE_SCOPES,
+      prompt: '',
+      callback: (response) => {
+        if (response.error) {
+          resolve(null);
+        } else {
+          resolve(response.access_token);
+        }
+      },
+    });
+    client.requestAccessToken();
+  });
+
+  if (silentToken) {
+    googleToken = silentToken;
+    tokenExpiresAt = Date.now() + 55 * 60 * 1000;
+    window._driveToken = googleToken;
+    return googleToken;
+  }
+
+  const visibleToken = await new Promise((resolve) => {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: GOOGLE_SCOPES,
+      callback: (response) => {
+        if (response.error) {
+          resolve(null);
+        } else {
+          resolve(response.access_token);
+        }
+      },
+    });
+    client.requestAccessToken();
+  });
+
+  if (visibleToken) {
+    googleToken = visibleToken;
+    tokenExpiresAt = Date.now() + 55 * 60 * 1000;
+    window._driveToken = googleToken;
+  }
+
+  return googleToken;
+}
 const state = {
   user: null,
   trips: [],
@@ -32,6 +87,23 @@ const state = {
   pendingImage: null,
   selectedCategory: null,
 };
+// ─── ACTION LOG (debugging) ────────────────────────────────────────────────────
+let actionLog = [];
+
+function logAction(action, result, detail = '') {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    action,
+    result, // 'success', 'pending', 'failed'
+    detail,
+  };
+  actionLog.push(entry);
+  if (actionLog.length > 100) actionLog.shift(); // mantener solo las últimas 100
+  try {
+    localStorage.setItem('triptrak_action_log', JSON.stringify(actionLog));
+  } catch (e) {}
+  console.log(`[LOG] ${action} → ${result}`, detail);
+}
 function save() {
   const expensesWithoutImages = state.expenses.map(e => ({ ...e, image: null }));
   try {
@@ -465,6 +537,21 @@ document.getElementById('btn-manual').addEventListener('click', async () => {
   });
 
   document.getElementById('btn-diagnostic').addEventListener('click', runDiagnostic);
+  document.getElementById('btn-view-log').addEventListener('click', () => {
+    const log = actionLog.slice().reverse().slice(0, 20);
+    if (log.length === 0) {
+      alert('No hay acciones registradas todavía en esta sesión.');
+      return;
+    }
+    let report = '📋 ÚLTIMAS 20 ACCIONES (más reciente primero):\n\n';
+    log.forEach(entry => {
+      const icon = entry.result === 'success' ? '✅' : entry.result === 'failed' ? '❌' : '⏳';
+      const time = new Date(entry.timestamp).toLocaleTimeString('es');
+      report += `${icon} [${time}] ${entry.action}\n   ${entry.detail}\n\n`;
+    });
+    console.log(report);
+    alert(report);
+  });
 
   // CATEGORIES
   document.getElementById('btn-categories-back').addEventListener('click', () => showScreen('profile'));
@@ -1212,9 +1299,11 @@ async function fetchGoogleUserInfo(token) {
 }
 // ─── GOOGLE DRIVE ─────────────────────────────────────────────────────────────
 async function createDriveFolder(trip) {
+  logAction('createDriveFolder', 'pending', `Iniciando para viaje: ${trip.name}`);
   await getValidToken();
 
   if (!googleToken) {
+    logAction('createDriveFolder', 'failed', 'No se obtuvo googleToken');
     alert('No se pudo conectar con Google. Intentá de nuevo.');
     return;
   }
@@ -1262,6 +1351,12 @@ async function createDriveFolder(trip) {
     });
     const tripData = await tripRes.json();
 
+    if (!tripData.id) {
+      logAction('createDriveFolder', 'failed', `Drive no devolvió ID de carpeta. Respuesta: ${JSON.stringify(tripData)}`);
+      alert('Viaje creado pero no se pudo crear la carpeta en Drive. Intentá de nuevo desde Administrar viajes.');
+      return;
+    }
+
     // Guardar el ID de la carpeta en el viaje
     trip.driveFolderId = tripData.id;
     trip.driveUrl = `https://drive.google.com/drive/folders/${tripData.id}`;
@@ -1273,9 +1368,11 @@ async function createDriveFolder(trip) {
 
     await createTripSheet(trip);
 
+    logAction('createDriveFolder', 'success', `Carpeta creada: ${tripData.id}`);
     showToast(`Viaje "${trip.name}" creado correctamente`, '✅');
   } catch (err) {
     console.error(err);
+    logAction('createDriveFolder', 'failed', `Excepción: ${err.message}`);
     alert('Viaje creado pero no se pudo crear la carpeta en Drive. Intentá de nuevo.');
   }
 }
@@ -1949,12 +2046,19 @@ async function loadDataFromDrive() {
   }
 }
 async function saveDataToDrive() {
-  if (!googleToken && window._driveToken) googleToken = window._driveToken;
-  if (!googleToken) return;
+  logAction('saveDataToDrive', 'pending', `Trips: ${state.trips.length}, Expenses: ${state.expenses.length}`);
+  await getValidToken();
+  if (!googleToken) {
+    logAction('saveDataToDrive', 'failed', 'No se obtuvo googleToken');
+    return;
+  }
 
   if (!window._driveFileId) {
     const fileInfo = await findOrCreateDataFile();
-    if (!fileInfo) return;
+    if (!fileInfo) {
+      logAction('saveDataToDrive', 'failed', 'findOrCreateDataFile devolvió null');
+      return;
+    }
     window._driveFileId = fileInfo.fileId;
   }
 
@@ -1966,7 +2070,7 @@ async function saveDataToDrive() {
   };
 
   try {
-    await fetch(`https://www.googleapis.com/upload/drive/v3/files/${window._driveFileId}?uploadType=media`, {
+    const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${window._driveFileId}?uploadType=media`, {
       method: 'PATCH',
       headers: {
         Authorization: `Bearer ${googleToken}`,
@@ -1974,68 +2078,18 @@ async function saveDataToDrive() {
       },
       body: JSON.stringify(dataToSave),
     });
+
+    if (!res.ok) {
+      const errBody = await res.text();
+      logAction('saveDataToDrive', 'failed', `HTTP ${res.status}: ${errBody}`);
+      return;
+    }
+
+    logAction('saveDataToDrive', 'success', `Guardado: ${state.trips.length} viajes`);
   } catch (err) {
     console.error('Error guardando JSON en Drive:', err);
+    logAction('saveDataToDrive', 'failed', `Excepción: ${err.message}`);
   }
-}
-// ─── CENTRALIZED TOKEN MANAGEMENT ──────────────────────────────────────────────
-let tokenExpiresAt = 0;
-
-async function getValidToken() {
-  const now = Date.now();
-
-  // Si tenemos un token y todavía no expiró (con margen de 5 min), lo reusamos
-  if (googleToken && now < tokenExpiresAt) {
-    return googleToken;
-  }
-
-  // Intentar renovación silenciosa primero (sin popup visible)
-  const silentToken = await new Promise((resolve) => {
-    const client = google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: GOOGLE_SCOPES,
-      prompt: '',
-      callback: (response) => {
-        if (response.error) {
-          resolve(null);
-        } else {
-          resolve(response.access_token);
-        }
-      },
-    });
-    client.requestAccessToken();
-  });
-
-  if (silentToken) {
-    googleToken = silentToken;
-    tokenExpiresAt = Date.now() + 55 * 60 * 1000; // 55 min de margen
-    window._driveToken = googleToken;
-    return googleToken;
-  }
-
-  // Si la renovación silenciosa falló, pedir con popup visible
-  const visibleToken = await new Promise((resolve) => {
-    const client = google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: GOOGLE_SCOPES,
-      callback: (response) => {
-        if (response.error) {
-          resolve(null);
-        } else {
-          resolve(response.access_token);
-        }
-      },
-    });
-    client.requestAccessToken();
-  });
-
-  if (visibleToken) {
-    googleToken = visibleToken;
-    tokenExpiresAt = Date.now() + 55 * 60 * 1000;
-    window._driveToken = googleToken;
-  }
-
-  return googleToken;
 }
 
 async function runDiagnostic() {
