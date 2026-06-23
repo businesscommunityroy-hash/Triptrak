@@ -246,10 +246,22 @@
         <label>Empresa</label>
         <input type="text" id="profile-company">
       </div>
-      <button class="btn-primary" id="btn-profile-save">Guardar cambios</button>
+   <button class="btn-primary" id="btn-profile-save">Guardar cambios</button>
       <button class="btn-secondary" id="btn-categories" style="margin-top:12px;">⚙️ Administrar categorías</button>
       <button class="btn-secondary" id="btn-manage-trips" style="margin-top:12px;">🗺️ Administrar viajes</button>
       <button class="btn-secondary" id="btn-logout" style="margin-top:12px; color:var(--red); border-color:var(--red);">🚪 Cerrar sesión</button>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-top:24px; padding-top:16px; border-top:1px solid var(--border);">
+        <span style="font-size:13px; color:var(--text2);">🔧 Modo desarrollador</span>
+        <label style="position:relative; display:inline-block; width:44px; height:24px;">
+          <input type="checkbox" id="toggle-dev-mode" style="opacity:0; width:0; height:0;">
+          <span id="dev-toggle-slider" style="position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:var(--border); border-radius:24px; transition:.3s;"></span>
+        </label>
+      </div>
+
+      <div id="dev-tools" style="display:none; margin-top:12px;">
+        <button class="btn-secondary" id="btn-diagnostic" style="margin-top:8px;">🔍 Diagnóstico (memoria vs Drive)</button>
+      </div>
     </div>
   </div>
  <!-- MANAGE TRIPS -->

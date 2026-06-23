@@ -216,6 +216,7 @@ function bindEvents() {
       ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
       : 'Tomá una foto o subí desde tu galería.';
   });
+
  
   // HOME → ANALYZE
   document.getElementById('btn-analyze').addEventListener('click', () => {
@@ -442,6 +443,29 @@ document.getElementById('btn-manual').addEventListener('click', async () => {
     showScreen('manage-trips');
   });
   document.getElementById('btn-manage-trips-back').addEventListener('click', () => showScreen('profile'));
+
+
+  // DEV MODE TOGGLE
+  const devToggle = document.getElementById('toggle-dev-mode');
+  const devSlider = document.getElementById('dev-toggle-slider');
+  const devTools = document.getElementById('dev-tools');
+
+  function updateDevToggleUI(enabled) {
+    devTools.style.display = enabled ? 'block' : 'none';
+    devSlider.style.background = enabled ? 'var(--accent)' : 'var(--border)';
+  }
+
+  const savedDevMode = localStorage.getItem('triptrak_dev_mode') === 'true';
+  devToggle.checked = savedDevMode;
+  updateDevToggleUI(savedDevMode);
+
+  devToggle.addEventListener('change', () => {
+    localStorage.setItem('triptrak_dev_mode', devToggle.checked);
+    updateDevToggleUI(devToggle.checked);
+  });
+
+  document.getElementById('btn-diagnostic').addEventListener('click', runDiagnostic);
+
   // CATEGORIES
   document.getElementById('btn-categories-back').addEventListener('click', () => showScreen('profile'));
   document.getElementById('btn-add-category').addEventListener('click', addCategory);
@@ -2012,5 +2036,67 @@ async function getValidToken() {
   }
 
   return googleToken;
+}
+
+async function runDiagnostic() {
+  showLoading('Comparando memoria vs Drive...');
+
+  const memoryTrips = state.trips;
+  const memoryExpenses = state.expenses;
+
+  const driveData = await loadDataFromDrive();
+
+  hideLoading();
+
+  if (!driveData) {
+    alert('❌ No se pudo leer el JSON de Drive. Revisá la conexión o el token.');
+    return;
+  }
+
+  const driveTrips = driveData.trips || [];
+  const driveExpenses = driveData.expenses || [];
+
+  const memoryTripIds = new Set(memoryTrips.map(t => t.id));
+  const driveTripIds = new Set(driveTrips.map(t => t.id));
+
+  const inMemoryNotInDrive = memoryTrips.filter(t => !driveTripIds.has(t.id));
+  const inDriveNotInMemory = driveTrips.filter(t => !memoryTripIds.has(t.id));
+
+  const memoryExpenseIds = new Set(memoryExpenses.map(e => e.id));
+  const driveExpenseIds = new Set(driveExpenses.map(e => e.id));
+
+  const expensesInMemoryNotInDrive = memoryExpenses.filter(e => !driveExpenseIds.has(e.id));
+  const expensesInDriveNotInMemory = driveExpenses.filter(e => !memoryExpenseIds.has(e.id));
+
+  let report = `🔍 DIAGNÓSTICO\n\n`;
+  report += `Viajes en memoria: ${memoryTrips.length}\n`;
+  report += `Viajes en Drive: ${driveTrips.length}\n\n`;
+
+  if (inMemoryNotInDrive.length > 0) {
+    report += `⚠️ EN MEMORIA pero NO en Drive (riesgo de pérdida):\n`;
+    inMemoryNotInDrive.forEach(t => report += `  - ${t.name} (${t.start})\n`);
+    report += `\n`;
+  }
+
+  if (inDriveNotInMemory.length > 0) {
+    report += `ℹ️ EN DRIVE pero no en memoria (normal si se creó en otro dispositivo):\n`;
+    inDriveNotInMemory.forEach(t => report += `  - ${t.name} (${t.start})\n`);
+    report += `\n`;
+  }
+
+  if (expensesInMemoryNotInDrive.length > 0) {
+    report += `⚠️ GASTOS en memoria pero NO en Drive (riesgo de pérdida): ${expensesInMemoryNotInDrive.length}\n\n`;
+  }
+
+  if (expensesInDriveNotInMemory.length > 0) {
+    report += `ℹ️ GASTOS en Drive pero no en memoria: ${expensesInDriveNotInMemory.length}\n\n`;
+  }
+
+  if (inMemoryNotInDrive.length === 0 && inDriveNotInMemory.length === 0 && expensesInMemoryNotInDrive.length === 0 && expensesInDriveNotInMemory.length === 0) {
+    report += `✅ TODO SINCRONIZADO CORRECTAMENTE`;
+  }
+
+  console.log(report);
+  alert(report);
 }
 init();
