@@ -103,6 +103,20 @@ function logAction(action, result, detail = '') {
     localStorage.setItem('triptrak_action_log', JSON.stringify(actionLog));
   } catch (e) {}
   console.log(`[LOG] ${action} → ${result}`, detail);
+  updateSyncIndicator(result);
+}
+
+function updateSyncIndicator(result) {
+  const indicator = document.getElementById('sync-indicator');
+  if (!indicator) return;
+
+  if (result === 'pending') {
+    indicator.style.background = 'var(--yellow)';
+  } else if (result === 'failed') {
+    indicator.style.background = 'var(--red)';
+  } else if (result === 'success') {
+    indicator.style.background = 'var(--green)';
+  }
 }
 function save() {
   const expensesWithoutImages = state.expenses.map(e => ({ ...e, image: null }));
