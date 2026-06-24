@@ -674,10 +674,11 @@ function renderHome() {
   const trip = state.activeTrip;
   const nameEl = document.getElementById('home-trip-name');
   const datesEl = document.getElementById('home-trip-dates');
-if (!trip) {
+
+  if (!trip) {
     if (state.trips.length > 0) {
       nameEl.textContent = 'No hay viaje en curso el dia de hoy';
-      datesEl.innerHTML = `Tienes ${state.trips.length} viaje(s) creados.<br>Click en "Cambiar viaje" para seleccionar uno.`;
+      datesEl.innerHTML = `Tienes ${state.trips.length} viaje(s) creados.<br>Tocá "Seleccionar viaje" para elegir uno.`;
     } else {
       nameEl.textContent = 'No hay viajes disponibles';
       datesEl.textContent = 'Creá un nuevo viaje para empezar';
@@ -689,12 +690,24 @@ if (!trip) {
     const statusText = isUpcoming ? 'Próximo' : `En curso · Día ${elapsed} de ${total}`;
     datesEl.innerHTML = `Fechas: ${formatDate(trip.start)} → ${formatDate(trip.end)}<br>Estado: ${statusText}`;
   }
- 
- renderStatsGrid();
+
+  renderStatsGrid();
   renderExpensesList();
   checkReminder();
 
-  const calBtn = document.getElementById('btn-add-calendar');
+  // Botón de cambiar/seleccionar viaje — texto dinámico
+  const changeBtn = document.getElementById('btn-change-trip');
+  if (changeBtn) {
+    changeBtn.textContent = trip ? '🔄 Cambiar viaje' : '✈️ Seleccionar viaje';
+  }
+
+  // Botones que solo tienen sentido con un viaje activo
+  const tripOnlyButtons = ['btn-analyze', 'btn-view-drive', 'btn-edit-trip-quick', 'btn-add-calendar'];
+  tripOnlyButtons.forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.style.display = trip ? 'inline-flex' : 'none';
+  });
+const calBtn = document.getElementById('btn-add-calendar');
   if (calBtn) {
     if (trip && trip.calendarEventId) {
       calBtn.textContent = '🗑️ Quitar de Calendar';
@@ -703,7 +716,6 @@ if (!trip) {
     }
   }
 }
-
  
 function renderStatsGrid() {
   const grid = document.getElementById('stats-grid');
