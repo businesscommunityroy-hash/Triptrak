@@ -987,12 +987,11 @@ async function saveExpense() {
     }
   }
 
-  const today = new Date().toISOString().split('T')[0];
   const expense = {
     id: Date.now(),
     tripId: state.activeTrip.id,
     datetime,
-    date: today,
+    date: datetime,
     amountOrig,
     currency,
     amountUSD,
@@ -1001,6 +1000,7 @@ async function saveExpense() {
     image: null,
   };
 
+  logAction('saveExpense', 'pending', `Creando gasto ${expense.id}, monto: ${amountUSD}`);
   state.expenses.push(expense);
   save();
 
@@ -1012,6 +1012,7 @@ async function saveExpense() {
     await uploadPhotoToDrive(expense, state.pendingImage.dataUrl);
   }
 
+  logAction('saveExpense', 'success', `Gasto ${expense.id} guardado completamente`);
   state.pendingImage = null;
   btn.disabled = false;
   btn.textContent = 'Guardar recibo →';
@@ -1019,7 +1020,6 @@ async function saveExpense() {
   showScreen('home');
   showToast('Gasto guardado correctamente');
 }
- 
 // ─── ANALYZE ─────────────────────────────────────────────────────────────────
 function renderAnalyze() {
   if (!state.activeTrip) return;
@@ -1240,6 +1240,7 @@ async function saveManualExpense() {
     image: null,
   };
 
+  logAction('saveManualExpense', 'pending', `Creando gasto ${expense.id}, monto: ${amountUSD}`);
   state.expenses.push(expense);
   save();
 
@@ -1251,6 +1252,7 @@ async function saveManualExpense() {
     await uploadPhotoToDrive(expense, state.pendingImage.dataUrl);
   }
 
+  logAction('saveManualExpense', 'success', `Gasto ${expense.id} guardado completamente`);
   state.pendingImage = null;
   btn.disabled = false;
   btn.textContent = 'Guardar gasto →';
@@ -1259,7 +1261,6 @@ async function saveManualExpense() {
   showToast('Gasto guardado correctamente');
 }
 
-// ─── START ────────────────────────────────────────────────────────────────────
 // ─── GOOGLE CALENDAR ─────────────────────────────────────────────────────────
 async function addTripToGoogleCalendar(trip) {
   const token = await getValidToken();
@@ -1566,9 +1567,13 @@ async function createTripSheet(trip) {
 }
 
 async function appendExpenseToSheet(expense, sheetId) {
+  logAction('appendExpenseToSheet', 'pending', `Gasto: ${expense.id}, monto: ${expense.amountUSD}`);
   await getValidToken();
   if (!window._driveToken) window._driveToken = googleToken;
-  if (!googleToken) return;
+  if (!googleToken) {
+    logAction('appendExpenseToSheet', 'failed', 'No se obtuvo googleToken');
+    return;
+  }
 
   try {
     const receiptUrl = expense.driveFileId 
@@ -1586,8 +1591,8 @@ async function appendExpenseToSheet(expense, sheetId) {
       receiptUrl,
       expense.id,
     ];
-   
-    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A:I:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A:I:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${googleToken}`,
@@ -1596,8 +1601,16 @@ async function appendExpenseToSheet(expense, sheetId) {
       body: JSON.stringify({ values: [row] }),
     });
 
+    if (!res.ok) {
+      const errBody = await res.text();
+      logAction('appendExpenseToSheet', 'failed', `HTTP ${res.status}: ${errBody}`);
+      return;
+    }
+
+    logAction('appendExpenseToSheet', 'success', `Gasto ${expense.id} agregado al Sheet`);
   } catch (err) {
     console.error('Error agregando fila al Sheet:', err);
+    logAction('appendExpenseToSheet', 'failed', `Excepción: ${err.message}`);
   }
 }
 // ─── MANAGE TRIPS ─────────────────────────────────────────────────────────────
