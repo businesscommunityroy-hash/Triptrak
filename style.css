@@ -355,6 +355,12 @@ body {
   font-size: 10px;
   font-weight: 500;
 }
+.nav-item:hover {
+  color: var(--text);
+}
+.nav-item:hover svg {
+  stroke: var(--text);
+}
 .nav-item.active { color: var(--accent); }
 .nav-item svg { width: 22px; height: 22px; }
 .nav-center { position: relative; }

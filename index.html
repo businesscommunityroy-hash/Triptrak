@@ -66,8 +66,9 @@
         <button class="btn-primary" id="btn-new-trip" style="width:auto; padding:10px 18px; margin:0; font-size:13px;">+ Nuevo viaje</button>
       </div>
       <div class="trip-actions">
+        <button class="btn-sm" id="btn-change-trip">✈️ Seleccionar viaje</button>
         <button class="btn-sm" id="btn-analyze">📊 Analizar viaje</button>
-        <button class="btn-sm" id="btn-change-trip">🔄 Cambiar viaje</button>
+
         <button class="btn-sm" id="btn-view-drive">📁 Ver en Drive</button>
         <button class="btn-sm" id="btn-edit-trip-quick">✏️ Editar viaje</button>
         <button class="btn-sm" id="btn-add-calendar">📅 Agregar a Calendar</button>
@@ -230,6 +231,22 @@
       <p class="section-title" style="padding:20px 0 10px;">Gasto por día</p>
       <div id="analyze-days"></div>
     </div>
+    <div class="bottom-nav">
+      <div class="nav-item" id="nav-home-analyze">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+        Inicio
+      </div>
+      <div class="nav-item nav-center">
+        <button class="capture-btn" id="btn-capture-analyze">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
+        <span class="nav-label">Capturar</span>
+      </div>
+      <div class="nav-item" id="nav-history-analyze">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Historial
+      </div>
+    </div>
   </div>
  
   <!-- PROFILE -->
@@ -311,7 +328,25 @@
     <h2 class="screen-title" id="trip-expenses-title">Gastos del viaje</h2>
     <div id="trip-expenses-list"></div>
   </div>
+  <div class="bottom-nav">
+    <div class="nav-item" id="nav-home-trip-expenses">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+      Inicio
+    </div>
+    <div class="nav-item nav-center">
+      <button class="capture-btn" id="btn-capture-trip-expenses">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </button>
+      <span class="nav-label">Capturar</span>
+    </div>
+    <div class="nav-item" id="nav-history-trip-expenses">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Historial
+    </div>
+  </div>
 </div>
+
+<!-- HISTORY -->
   <!-- HISTORY -->
   <div class="screen" id="screen-history">
     <div class="header">

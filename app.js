@@ -408,25 +408,59 @@ document.getElementById('btn-sync').addEventListener('click', async () => {
     renderHistory();
     showScreen('history');
   });
-  document.getElementById('nav-home-2').addEventListener('click', () => {
-    renderHome();
-    showScreen('home');
+  document.getElementById('nav-home').addEventListener('click', goToHomeAndReleaseTrip);
+  document.getElementById('nav-home-2').addEventListener('click', goToHomeAndReleaseTrip);
+  document.getElementById('nav-home-analyze').addEventListener('click', goToHomeAndReleaseTrip);
+  document.getElementById('btn-capture-analyze').addEventListener('click', () => {
+    
+    showScreen('capture');
+    const el = document.getElementById('capture-trip-label');
+    if (el) el.textContent = state.activeTrip 
+      ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
+      : 'Tomá una foto o subí desde tu galería.';
   });
- 
-  // CAPTURE
+  document.getElementById('nav-history-analyze').addEventListener('click', () => {
+    renderHistory();
+    showScreen('history');
+  });
+ document.getElementById('nav-home-trip-expenses').addEventListener('click', goToHomeAndReleaseTrip);
+  document.getElementById('btn-capture-trip-expenses').addEventListener('click', () => {
+    showScreen('capture');
+    const el = document.getElementById('capture-trip-label');
+    if (el) el.textContent = state.activeTrip 
+      ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
+      : 'Tomá una foto o subí desde tu galería.';
+  });
+  document.getElementById('nav-history-trip-expenses').addEventListener('click', () => {
+    renderHistory();
+    showScreen('history');
+  });
+// CAPTURE
   document.getElementById('upload-zone').addEventListener('click', () => {
+    if (!state.activeTrip) {
+      alert('Primero seleccioná o creá un viaje desde "Cambiar viaje".');
+      return;
+    }
     document.getElementById('file-input').click();
   });
   document.getElementById('file-input').addEventListener('change', (e) => {
     handleImageFile(e.target.files[0]);
   });
-  document.getElementById('btn-gallery').addEventListener('click', () => {
+document.getElementById('btn-gallery').addEventListener('click', () => {
+    if (!state.activeTrip) {
+      alert('Primero seleccioná o creá un viaje desde "Cambiar viaje".');
+      return;
+    }
     document.getElementById('gallery-input').click();
   });
   document.getElementById('gallery-input').addEventListener('change', (e) => {
     handleImageFile(e.target.files[0]);
   });
   document.getElementById('btn-multi').addEventListener('click', () => {
+    if (!state.activeTrip) {
+      alert('Primero seleccioná o creá un viaje desde "Cambiar viaje".');
+      return;
+    }
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -474,6 +508,12 @@ document.getElementById('btn-sync').addEventListener('click', async () => {
   });
  // MANUAL EXPENSE
 document.getElementById('btn-manual').addEventListener('click', async () => {
+    if (!state.activeTrip) {
+      alert('Primero seleccioná o creá un viaje desde "Cambiar viaje".');
+      showScreen('home');
+      return;
+    }
+
     showLoading('Sincronizando con Drive...');
     const driveData = await loadDataFromDrive();
     if (driveData) {
@@ -1092,12 +1132,12 @@ function renderHistory() {
     list.innerHTML = '<div class="empty-state">🗂️<p>No hay viajes anteriores.</p></div>';
     return;
   }
- 
+
   list.innerHTML = state.trips.slice().reverse().map(trip => {
     const expenses = getTripExpenses(trip.id);
     const total = expenses.reduce((s, e) => s + (parseFloat(e.amountUSD) || 0), 0);
     return `
-      <div class="history-item">
+      <div class="history-item" onclick="viewTripExpenses(${trip.id})" style="cursor:pointer;">
         <p class="history-name">${trip.name}</p>
         <p class="history-dates">${formatDate(trip.start)} → ${formatDate(trip.end)}</p>
         <p class="history-total">$${total.toFixed(2)} USD</p>
@@ -1105,7 +1145,6 @@ function renderHistory() {
     `;
   }).join('');
 }
- 
 // ─── CATEGORIES MANAGEMENT ───────────────────────────────────────────────────
 function renderCategories() {
   const list = document.getElementById('categories-list');
@@ -2206,4 +2245,22 @@ document.addEventListener('visibilitychange', async () => {
     }
   }
 });
+function goToHomeAndReleaseTrip() {
+  state.activeTrip = null;
+  save();
+
+  const today = new Date().toISOString().split('T')[0];
+  const todayTrip = state.trips.find(t => t.start <= today && t.end >= today);
+
+  if (todayTrip) {
+    const confirmActivate = confirm(`Tenés el viaje "${todayTrip.name}" en curso hoy. ¿Querés activarlo?`);
+    if (confirmActivate) {
+      state.activeTrip = todayTrip;
+      save();
+    }
+  }
+
+  renderHome();
+  showScreen('home');
+}
 init();
