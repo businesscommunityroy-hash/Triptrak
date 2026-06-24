@@ -197,6 +197,11 @@ function init() {
  
 // ─── AUTO DETECT ACTIVE TRIP ─────────────────────────────────────────────────
 function autoDetectTrip() {
+  // Si el activeTrip actual ya no existe en la lista de trips, limpiarlo
+  if (state.activeTrip && !state.trips.find(t => t.id === state.activeTrip.id)) {
+    state.activeTrip = null;
+  }
+
   if (state.trips.length === 0) return;
   const today = new Date().toISOString().split('T')[0];
   const active = state.trips.find(t => t.start <= today && t.end >= today);
