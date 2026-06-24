@@ -2185,4 +2185,25 @@ async function runDiagnostic() {
   console.log(report);
   alert(report);
 }
+// ─── AUTO SYNC ON VISIBILITY CHANGE ────────────────────────────────────────────
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && state.user) {
+    const driveData = await loadDataFromDrive();
+    if (driveData) {
+      state.trips = driveData.trips || [];
+      state.expenses = driveData.expenses || [];
+      state.categories = driveData.categories || state.categories;
+      if (driveData.profile) {
+        state.user = { ...state.user, ...driveData.profile, initials: getInitials(driveData.profile.name) };
+      }
+      autoDetectTrip();
+
+      const homeScreen = document.getElementById('screen-home');
+      if (homeScreen && homeScreen.classList.contains('active')) {
+        renderHome();
+        updateAvatars();
+      }
+    }
+  }
+});
 init();
