@@ -183,18 +183,37 @@ function hideLoading() {
 function init() {
   load();
   autoDetectTrip();
- 
+
   if (!state.user) {
     showScreen('login');
   } else {
     updateAvatars();
     renderHome();
     showScreen('home');
+    syncOnLoad();
   }
- 
+
   bindEvents();
 }
- 
+
+async function syncOnLoad() {
+  const driveData = await loadDataFromDrive();
+  if (driveData) {
+    state.trips = driveData.trips || [];
+    state.expenses = driveData.expenses || [];
+    state.categories = driveData.categories || state.categories;
+    if (driveData.profile) {
+      state.user = { ...state.user, ...driveData.profile, initials: getInitials(driveData.profile.name) };
+    }
+    autoDetectTrip();
+
+    const homeScreen = document.getElementById('screen-home');
+    if (homeScreen && homeScreen.classList.contains('active')) {
+      renderHome();
+      updateAvatars();
+    }
+  }
+}
 // ─── AUTO DETECT ACTIVE TRIP ─────────────────────────────────────────────────
 function autoDetectTrip() {
   // Si el activeTrip actual ya no existe en la lista de trips, limpiarlo
