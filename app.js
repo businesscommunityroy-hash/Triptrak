@@ -749,6 +749,98 @@ document.getElementById('btn-enable-edit').addEventListener('click', () => {
     renderHistory();
     showScreen('history');
   });
+  document.getElementById('btn-expense-detail-back').addEventListener('click', () => {
+    const trip = state.trips.find(t => t.id === window._detailTripId);
+    if (trip) openTripDetail(trip.id);
+  });
+
+  document.getElementById('btn-save-expense-detail').addEventListener('click', async () => {
+    const expense = state.expenses.find(e => e.id === window._detailExpenseId);
+    if (!expense) return;
+
+    const newDate = document.getElementById('expense-detail-date').value;
+    const newAmount = document.getElementById('expense-detail-amount').value;
+    const newCurrency = document.getElementById('expense-detail-currency').value;
+    const newDescription = document.getElementById('expense-detail-description').value;
+    const newCategory = window._detailSelectedCategory;
+
+    if (!newDate || !newAmount) return alert('Completá fecha y monto.');
+
+    const trip = state.trips.find(t => t.id === expense.tripId);
+    if (trip && (newDate < trip.start || newDate > trip.end)) {
+      return alert(`⚠️ La fecha está fuera del rango del viaje (${formatDate(trip.start)} → ${formatDate(trip.end)}).`);
+    }
+
+    const idx = state.expenses.findIndex(e => e.id === expense.id);
+    let newAmountUSD = newAmount;
+    if (newCurrency !== 'USD') {
+      try {
+        const res = await fetch(`https://api.exchangerate-api.com/v4/latest/${newCurrency}`);
+        const data = await res.json();
+        const rate = data.rates['USD'];
+        if (rate) newAmountUSD = (parseFloat(newAmount) * rate).toFixed(2);
+      } catch { newAmountUSD = newAmount; }
+    } else {
+      newAmountUSD = parseFloat(newAmount).toFixed(2);
+    }
+
+    state.expenses[idx] = {
+      ...expense,
+      date: newDate,
+      datetime: formatDate(newDate),
+      amountOrig: newAmount,
+      currency: newCurrency,
+      amountUSD: newAmountUSD,
+      description: newDescription,
+      category: newCategory,
+    };
+    save();
+
+    if (trip && trip.sheetId) {
+      await updateExpenseInSheet(state.expenses[idx], trip.sheetId);
+    }
+
+    showToast('Gasto actualizado correctamente', '✅');
+    openExpenseDetail(expense.id);
+  });
+
+  document.getElementById('btn-enable-edit-expense').addEventListener('click', () => {
+    document.getElementById('expense-detail-view-mode').style.display = 'none';
+    document.getElementById('expense-detail-edit-mode').style.display = 'block';
+  });
+  document.getElementById('btn-cancel-edit-expense').addEventListener('click', () => {
+    document.getElementById('expense-detail-view-mode').style.display = 'block';
+    document.getElementById('expense-detail-edit-mode').style.display = 'none';
+  });
+  document.getElementById('btn-delete-expense-detail').addEventListener('click', async () => {
+    const expense = state.expenses.find(e => e.id === window._detailExpenseId);
+    if (!expense) return;
+
+    const confirmDelete = confirm(`¿Eliminar este gasto de ${expense.category} por $${expense.amountUSD}?`);
+    if (!confirmDelete) return;
+
+    const trip = state.trips.find(t => t.id === expense.tripId);
+
+    if (expense.driveFileId) {
+      await getValidToken();
+      try {
+        await fetch(`https://www.googleapis.com/drive/v3/files/${expense.driveFileId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${googleToken}` },
+        });
+      } catch (err) { console.error('Error eliminando foto:', err); }
+    }
+
+    if (trip && trip.sheetId) {
+      await deleteExpenseFromSheet(expense.id, trip.sheetId);
+    }
+
+    state.expenses = state.expenses.filter(e => e.id !== expense.id);
+    save();
+
+    showToast('Gasto eliminado correctamente', '🗑️');
+    if (trip) openTripDetail(trip.id);
+  });
 // MANAGE TRIPS
   document.getElementById('btn-manage-trips').addEventListener('click', async () => {
     showLoading('Sincronizando con Drive...');
@@ -2551,5 +2643,65 @@ function renderTripDetailExpensesList(trip) {
       <p class="history-total">$${parseFloat(e.amountUSD).toFixed(2)} USD ${e.currency !== 'USD' ? `(${e.amountOrig} ${e.currency})` : ''}</p>
     </div>
   `).join('');
+}
+function openExpenseDetail(expenseId) {
+  const expense = state.expenses.find(e => e.id === expenseId);
+  if (!expense) return;
+
+  window._detailExpenseId = expenseId;
+
+  document.getElementById('expense-detail-category-view').textContent = expense.category;
+  document.getElementById('expense-detail-summary-view').textContent = `${formatDate(expense.date)} · $${parseFloat(expense.amountUSD).toFixed(2)} USD${expense.description ? ' · ' + expense.description : ''}`;
+
+  const photoViewWrap = document.getElementById('expense-detail-photo-view-wrap');
+  const photoView = document.getElementById('expense-detail-photo-view');
+  if (expense.image) {
+    photoView.innerHTML = `<img src="${expense.image}" alt="Recibo" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
+    photoViewWrap.style.display = 'block';
+  } else {
+    photoViewWrap.style.display = 'none';
+  }
+
+  document.getElementById('expense-detail-date').value = expense.date;
+  document.getElementById('expense-detail-amount').value = expense.amountOrig;
+  document.getElementById('expense-detail-currency').value = expense.currency;
+  document.getElementById('expense-detail-description').value = expense.description || '';
+
+  renderExpenseDetailChips(expense.category);
+
+  const photoEditEl = document.getElementById('expense-detail-photo');
+  const removeBtn = document.getElementById('btn-remove-expense-photo');
+  if (expense.image) {
+    photoEditEl.innerHTML = `<img src="${expense.image}" alt="Recibo" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
+    photoEditEl.style.display = 'flex';
+    removeBtn.style.display = 'block';
+  } else {
+    photoEditEl.style.display = 'none';
+    removeBtn.style.display = 'none';
+  }
+
+  window._detailExpensePendingImage = null;
+
+  document.getElementById('expense-detail-view-mode').style.display = 'block';
+  document.getElementById('expense-detail-edit-mode').style.display = 'none';
+
+  showScreen('expense-detail');
+}
+
+function renderExpenseDetailChips(currentCategory) {
+  const container = document.getElementById('expense-detail-chips');
+  const active = state.categories.filter(c => c.active);
+
+  container.innerHTML = active.map(c =>
+    `<div class="chip ${c.name === currentCategory ? 'active' : ''}" data-cat="${c.name}" onclick="selectExpenseDetailChip(this)">${c.name}</div>`
+  ).join('');
+
+  window._detailSelectedCategory = currentCategory;
+}
+
+function selectExpenseDetailChip(el) {
+  document.querySelectorAll('#expense-detail-chips .chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  window._detailSelectedCategory = el.dataset.cat;
 }
 init();

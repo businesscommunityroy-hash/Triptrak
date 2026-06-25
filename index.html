@@ -416,27 +416,51 @@
     <div style="width:60px;"></div>
   </div>
   <div class="content">
-    <div class="review-photo" id="expense-detail-photo">🧾</div>
-    <div class="field">
-      <label>Fecha</label>
-      <input type="date" id="expense-detail-date">
+    <div id="expense-detail-view-mode">
+      <h2 class="screen-title" id="expense-detail-category-view">Categoría</h2>
+      <p class="screen-sub" id="expense-detail-summary-view">Resumen</p>
+      <button class="btn-secondary" id="btn-enable-edit-expense">✏️ Editar gasto</button>
+
+      <div id="expense-detail-photo-view-wrap" style="display:none; margin-top:20px;">
+        <p class="section-title" style="padding:0 0 10px;">Recibo</p>
+        <div class="review-photo" id="expense-detail-photo-view" style="height:160px;"></div>
+      </div>
     </div>
-    <div class="field">
-      <label>Monto</label>
-      <input type="number" id="expense-detail-amount">
+
+    <div id="expense-detail-edit-mode" style="display:none;">
+      <div class="field">
+        <label>Fecha</label>
+        <input type="date" id="expense-detail-date">
+      </div>
+      <div class="field">
+        <label>Monto</label>
+        <input type="number" id="expense-detail-amount">
+      </div>
+      <div class="field">
+        <label>Moneda</label>
+        <input type="text" id="expense-detail-currency">
+      </div>
+      <div class="field">
+        <label>Descripción</label>
+        <input type="text" id="expense-detail-description">
+      </div>
+      <p class="section-title" style="padding:0 0 10px;">Tipo de gasto</p>
+      <div class="category-chips" id="expense-detail-chips"></div>
+
+      <p class="section-title" style="padding:16px 0 10px;">Recibo</p>
+      <div id="expense-detail-photo-edit-wrap">
+        <div class="review-photo" id="expense-detail-photo" style="display:none;"></div>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button class="btn-secondary" id="btn-change-expense-photo" style="flex:1;">📷 Cambiar foto</button>
+          <button class="btn-secondary" id="btn-remove-expense-photo" style="flex:1; display:none; color:var(--red); border-color:var(--red);">🗑️ Quitar foto</button>
+        </div>
+        <input type="file" id="expense-detail-file-input" accept="image/jpeg,image/png,image/webp" style="display:none">
+      </div>
+
+      <button class="btn-primary" id="btn-save-expense-detail" style="margin-top:16px;">Guardar cambios</button>
+      <button class="btn-secondary" id="btn-cancel-edit-expense" style="margin-top:8px;">Cancelar</button>
+      <button class="btn-secondary" id="btn-delete-expense-detail" style="margin-top:8px; color:var(--red); border-color:var(--red);">🗑️ Eliminar gasto</button>
     </div>
-    <div class="field">
-      <label>Moneda</label>
-      <input type="text" id="expense-detail-currency">
-    </div>
-    <div class="field">
-      <label>Descripción</label>
-      <input type="text" id="expense-detail-description">
-    </div>
-    <p class="section-title" style="padding:0 0 10px;">Tipo de gasto</p>
-    <div class="category-chips" id="expense-detail-chips"></div>
-    <button class="btn-primary" id="btn-save-expense-detail">Guardar cambios</button>
-    <button class="btn-secondary" id="btn-delete-expense-detail" style="margin-top:8px; color:var(--red); border-color:var(--red);">🗑️ Eliminar gasto</button>
   </div>
 </div>
 <!-- HISTORY -->
