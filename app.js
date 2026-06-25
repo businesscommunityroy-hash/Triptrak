@@ -560,6 +560,200 @@ document.getElementById('btn-manual').addEventListener('click', async () => {
   });
   document.getElementById('btn-save-manual').addEventListener('click', saveManualExpense);
   document.getElementById('btn-trip-expenses-back').addEventListener('click', () => showScreen('manage-trips'));
+  document.getElementById('btn-trip-detail-back').addEventListener('click', () => showScreen('manage-trips'));
+document.getElementById('btn-enable-edit').addEventListener('click', () => {
+    document.getElementById('detail-view-mode').style.display = 'none';
+    document.getElementById('detail-edit-mode').style.display = 'block';
+  });
+  document.getElementById('btn-cancel-edit-trip').addEventListener('click', () => {
+    document.getElementById('detail-view-mode').style.display = 'block';
+    document.getElementById('detail-edit-mode').style.display = 'none';
+  });
+
+  document.getElementById('btn-toggle-expenses').addEventListener('click', () => {
+    const list = document.getElementById('detail-expenses-list');
+    list.style.display = list.style.display === 'none' ? 'block' : 'none';
+  });
+
+  document.getElementById('btn-save-trip-detail').addEventListener('click', async () => {
+    const trip = state.trips.find(t => t.id === window._detailTripId);
+    if (!trip) return;
+
+    const newName = document.getElementById('detail-trip-name').value.trim();
+    const newStart = document.getElementById('detail-trip-start').value;
+    const newEnd = document.getElementById('detail-trip-end').value;
+
+    if (!newName || !newStart || !newEnd) return alert('Completá todos los campos.');
+    if (newStart > newEnd) return alert('La fecha de inicio debe ser antes que la de fin.');
+
+    const expenses = getTripExpenses(trip.id);
+    const outOfRange = expenses.filter(e => e.date < newStart || e.date > newEnd);
+    if (outOfRange.length > 0) {
+      return alert(`No podés cambiar las fechas porque ${outOfRange.length} gasto(s) quedarían fuera del rango.`);
+    }
+
+    const idx = state.trips.findIndex(t => t.id === trip.id);
+    state.trips[idx] = { ...trip, name: newName, start: newStart, end: newEnd };
+    if (state.activeTrip && state.activeTrip.id === trip.id) {
+      state.activeTrip = state.trips[idx];
+    }
+    save();
+
+    showLoading('Actualizando Drive y Sheet...');
+    await getValidToken();
+
+    if (googleToken) {
+      if (trip.driveFolderId) {
+        try {
+          await fetch(`https://www.googleapis.com/drive/v3/files/${trip.driveFolderId}`, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${googleToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: `${newStart}_${newName}` }),
+          });
+        } catch (err) { console.error('Error renombrando carpeta:', err); }
+      }
+      if (trip.sheetId) {
+        try {
+          await fetch(`https://www.googleapis.com/drive/v3/files/${trip.sheetId}`, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${googleToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: `${newStart}_${newName}` }),
+          });
+        } catch (err) { console.error('Error renombrando sheet:', err); }
+      }
+    }
+
+    hideLoading();
+    showToast('Viaje actualizado correctamente', '✅');
+    openTripDetail(trip.id);
+    renderHome();
+  });
+
+  document.getElementById('btn-detail-delete-trip').addEventListener('click', async () => {
+    await deleteTrip(window._detailTripId);
+    showScreen('home');
+  });
+
+  document.getElementById('btn-detail-drive').addEventListener('click', () => {
+    const trip = state.trips.find(t => t.id === window._detailTripId);
+    if (trip && trip.driveUrl) window.open(trip.driveUrl, '_blank');
+  });
+
+  document.getElementById('btn-detail-calendar').addEventListener('click', async () => {
+    const trip = state.trips.find(t => t.id === window._detailTripId);
+    if (!trip) return;
+    if (trip.calendarEventId) {
+      await removeFromGoogleCalendar(trip);
+    } else {
+      await addTripToGoogleCalendar(trip);
+    }
+    openTripDetail(trip.id);
+  });
+
+  document.getElementById('nav-home-detail').addEventListener('click', goToHomeAndReleaseTrip);
+  document.getElementById('btn-capture-detail').addEventListener('click', () => {
+    showScreen('capture');
+    const el = document.getElementById('capture-trip-label');
+    if (el) el.textContent = state.activeTrip 
+      ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
+      : 'Tomá una foto o subí desde tu galería.';
+  });
+  document.getElementById('nav-history-detail').addEventListener('click', () => {
+    renderHistory();
+    showScreen('history');
+  });
+  document.getElementById('btn-toggle-expenses').addEventListener('click', () => {
+    const list = document.getElementById('detail-expenses-list');
+    list.style.display = list.style.display === 'none' ? 'block' : 'none';
+  });
+
+  document.getElementById('btn-save-trip-detail').addEventListener('click', async () => {
+    const trip = state.trips.find(t => t.id === window._detailTripId);
+    if (!trip) return;
+
+    const newName = document.getElementById('detail-trip-name').value.trim();
+    const newStart = document.getElementById('detail-trip-start').value;
+    const newEnd = document.getElementById('detail-trip-end').value;
+
+    if (!newName || !newStart || !newEnd) return alert('Completá todos los campos.');
+    if (newStart > newEnd) return alert('La fecha de inicio debe ser antes que la de fin.');
+
+    const expenses = getTripExpenses(trip.id);
+    const outOfRange = expenses.filter(e => e.date < newStart || e.date > newEnd);
+    if (outOfRange.length > 0) {
+      return alert(`No podés cambiar las fechas porque ${outOfRange.length} gasto(s) quedarían fuera del rango.`);
+    }
+
+    const idx = state.trips.findIndex(t => t.id === trip.id);
+    state.trips[idx] = { ...trip, name: newName, start: newStart, end: newEnd };
+    if (state.activeTrip && state.activeTrip.id === trip.id) {
+      state.activeTrip = state.trips[idx];
+    }
+    save();
+
+    showLoading('Actualizando Drive y Sheet...');
+    await getValidToken();
+
+    if (googleToken) {
+      if (trip.driveFolderId) {
+        try {
+          await fetch(`https://www.googleapis.com/drive/v3/files/${trip.driveFolderId}`, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${googleToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: `${newStart}_${newName}` }),
+          });
+        } catch (err) { console.error('Error renombrando carpeta:', err); }
+      }
+      if (trip.sheetId) {
+        try {
+          await fetch(`https://www.googleapis.com/drive/v3/files/${trip.sheetId}`, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${googleToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: `${newStart}_${newName}` }),
+          });
+        } catch (err) { console.error('Error renombrando sheet:', err); }
+      }
+    }
+
+    hideLoading();
+    showToast('Viaje actualizado correctamente', '✅');
+    openTripDetail(trip.id);
+    renderHome();
+  });
+
+  document.getElementById('btn-detail-delete-trip').addEventListener('click', async () => {
+    await deleteTrip(window._detailTripId);
+    showScreen('home');
+  });
+
+  document.getElementById('btn-detail-drive').addEventListener('click', () => {
+    const trip = state.trips.find(t => t.id === window._detailTripId);
+    if (trip && trip.driveUrl) window.open(trip.driveUrl, '_blank');
+  });
+
+  document.getElementById('btn-detail-calendar').addEventListener('click', async () => {
+    const trip = state.trips.find(t => t.id === window._detailTripId);
+    if (!trip) return;
+    if (trip.calendarEventId) {
+      await removeFromGoogleCalendar(trip);
+    } else {
+      await addTripToGoogleCalendar(trip);
+    }
+    openTripDetail(trip.id);
+  });
+
+  document.getElementById('nav-home-detail').addEventListener('click', goToHomeAndReleaseTrip);
+  document.getElementById('btn-capture-detail').addEventListener('click', () => {
+    showScreen('capture');
+    const el = document.getElementById('capture-trip-label');
+    if (el) el.textContent = state.activeTrip 
+      ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
+      : 'Tomá una foto o subí desde tu galería.';
+  });
+  document.getElementById('nav-history-detail').addEventListener('click', () => {
+    renderHistory();
+    showScreen('history');
+  });
 // MANAGE TRIPS
   document.getElementById('btn-manage-trips').addEventListener('click', async () => {
     showLoading('Sincronizando con Drive...');
@@ -1149,7 +1343,7 @@ function renderHistory() {
     const expenses = getTripExpenses(trip.id);
     const total = expenses.reduce((s, e) => s + (parseFloat(e.amountUSD) || 0), 0);
     return `
-      <div class="history-item" onclick="viewTripExpenses(${trip.id})" style="cursor:pointer;">
+      <div class="history-item" onclick="openTripDetail(${trip.id})" style="cursor:pointer;">
         <p class="history-name">${trip.name}</p>
         <p class="history-dates">${formatDate(trip.start)} → ${formatDate(trip.end)}</p>
         <p class="history-total">$${total.toFixed(2)} USD</p>
@@ -1520,7 +1714,7 @@ function selectTrip(id) {
   state.activeTrip = trip;
   save();
   closeModal('modal-change-trip');
-  renderHome();
+  openTripDetail(id);
 }
 // ─── GOOGLE SHEETS ───────────────────────────────────────────────────────────
 async function createTripSheet(trip) {
@@ -2274,5 +2468,93 @@ function goToHomeAndReleaseTrip() {
 
   renderHome();
   showScreen('home');
+}
+// ─── TRIP DETAIL (unified screen) ──────────────────────────────────────────────
+function openTripDetail(tripId) {
+  const trip = state.trips.find(t => t.id === tripId);
+  if (!trip) return;
+
+  window._detailTripId = tripId;
+
+  document.getElementById('detail-trip-name').value = trip.name;
+  document.getElementById('detail-trip-start').value = trip.start;
+  document.getElementById('detail-trip-end').value = trip.end;
+  document.getElementById('detail-trip-name-view').textContent = trip.name;
+  document.getElementById('detail-trip-dates-view').textContent = `${formatDate(trip.start)} → ${formatDate(trip.end)}`;
+  document.getElementById('detail-view-mode').style.display = 'block';
+  document.getElementById('detail-edit-mode').style.display = 'none';
+
+  const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+  document.getElementById('btn-detail-drive').style.display = isMobile ? 'none' : 'inline-flex';
+
+  const calBtn = document.getElementById('btn-detail-calendar');
+  calBtn.textContent = trip.calendarEventId ? '🗑️ Quitar de Calendar' : '📅 Agregar a Calendar';
+
+  renderTripDetailStats(trip);
+  renderTripDetailExpensesList(trip);
+
+  document.getElementById('detail-expenses-list').style.display = 'none';
+  const expenses = getTripExpenses(trip.id);
+  document.getElementById('btn-toggle-expenses').textContent = `📋 Ver gastos (${expenses.length})`;
+
+  showScreen('trip-detail');
+}
+
+function renderTripDetailStats(trip) {
+  const expenses = getTripExpenses(trip.id);
+  const { total, elapsed } = tripDayInfo(trip);
+  const totalSpent = expenses.reduce((s, e) => s + (parseFloat(e.amountUSD) || 0), 0);
+  const daysWithExpenses = new Set(expenses.map(e => e.date)).size;
+  const avgPerDay = daysWithExpenses > 0 ? totalSpent / daysWithExpenses : 0;
+
+  document.getElementById('detail-stats').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-icon">💰</div>
+      <p class="stat-val">$${totalSpent.toFixed(2)}</p>
+      <p class="stat-label">Total gastado</p>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📅</div>
+      <p class="stat-val">Día ${elapsed} de ${total}</p>
+      <p class="stat-label">Progreso del viaje</p>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📊</div>
+      <p class="stat-val">$${avgPerDay.toFixed(2)}</p>
+      <p class="stat-label">Promedio por día</p>
+    </div>
+  `;
+
+  const totals = getCategoryTotals(expenses);
+  const maxVal = Math.max(...Object.values(totals), 1);
+  document.getElementById('detail-categories').innerHTML = Object.entries(totals).map(([cat, val]) => `
+    <div class="analyze-bar-row">
+      <div class="analyze-bar-label">
+        <span>${cat}</span>
+        <span>$${val.toFixed(2)}</span>
+      </div>
+      <div class="analyze-bar-track">
+        <div class="analyze-bar-fill" style="width:${(val / maxVal * 100).toFixed(0)}%"></div>
+      </div>
+    </div>
+  `).join('') || '<p style="color:var(--text2);font-size:13px;">Sin gastos aún.</p>';
+}
+
+function renderTripDetailExpensesList(trip) {
+  const expenses = getTripExpenses(trip.id);
+  const list = document.getElementById('detail-expenses-list');
+
+  if (expenses.length === 0) {
+    list.innerHTML = '<p style="color:var(--text2);font-size:13px;padding:8px 0;">No hay gastos en este viaje.</p>';
+    return;
+  }
+
+  list.innerHTML = expenses.slice().reverse().map(e => `
+    <div class="history-item" onclick="openExpenseDetail(${e.id})" style="cursor:pointer;">
+      <p class="history-name">${e.category}</p>
+      <p class="history-dates">${e.datetime} — ${e.description || ''}</p>
+      <p class="history-total">$${parseFloat(e.amountUSD).toFixed(2)} USD ${e.currency !== 'USD' ? `(${e.amountOrig} ${e.currency})` : ''}</p>
+    </div>
+  `).join('');
 }
 init();

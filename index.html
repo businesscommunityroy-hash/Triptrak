@@ -68,7 +68,6 @@
       <div class="trip-actions">
         <button class="btn-sm" id="btn-change-trip">✈️ Seleccionar viaje</button>
         <button class="btn-sm" id="btn-analyze">📊 Analizar viaje</button>
-
         <button class="btn-sm" id="btn-view-drive">📁 Ver en Drive</button>
         <button class="btn-sm" id="btn-edit-trip-quick">✏️ Editar viaje</button>
         <button class="btn-sm" id="btn-add-calendar">📅 Agregar a Calendar</button>
@@ -345,10 +344,103 @@
     </div>
   </div>
 </div>
+<!-- TRIP DETAIL (unified) -->
+<div class="screen" id="screen-trip-detail">
+  <div class="header">
+    <button class="btn-back" id="btn-trip-detail-back">← Volver</button>
+    <span class="logo">Trip<span>Trak</span></span>
+    <div style="width:60px;"></div>
+  </div>
+  <div class="content">
+    <div id="detail-view-mode">
+      <h2 class="screen-title" id="detail-trip-name-view">Viaje</h2>
+      <p class="screen-sub" id="detail-trip-dates-view">Fechas</p>
+      <button class="btn-secondary" id="btn-enable-edit">✏️ Editar nombre y fechas</button>
+    </div>
+    <div id="detail-edit-mode" style="display:none;">
+      <div class="field">
+        <label>Nombre del viaje</label>
+        <input type="text" id="detail-trip-name">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="field">
+          <label>Fecha inicio</label>
+          <input type="date" id="detail-trip-start">
+        </div>
+        <div class="field">
+          <label>Fecha fin</label>
+          <input type="date" id="detail-trip-end">
+        </div>
+      </div>
+      <button class="btn-primary" id="btn-save-trip-detail">Guardar cambios</button>
+      <button class="btn-secondary" id="btn-cancel-edit-trip" style="margin-top:8px;">Cancelar</button>
+    </div>
 
+    <div class="stats-grid" id="detail-stats" style="margin-top:20px;"></div>
+
+    <p class="section-title" style="padding:20px 0 10px;">Gasto por categoría</p>
+    <div id="detail-categories"></div>
+
+    <button class="btn-secondary" id="btn-toggle-expenses" style="margin-top:20px;">📋 Ver gastos (0)</button>
+    <div id="detail-expenses-list" style="display:none; margin-top:12px;"></div>
+
+    <div style="display:flex; gap:8px; margin-top:20px; flex-wrap:wrap;">
+      <button class="btn-sm" id="btn-detail-calendar">📅 Agregar a Calendar</button>
+      <button class="btn-sm" id="btn-detail-drive" style="display:none;">📁 Ver en Drive</button>
+      <button class="btn-sm danger" id="btn-detail-delete-trip" style="color:var(--red);border-color:var(--red);">🗑️ Eliminar viaje</button>
+    </div>
+  </div>
+  <div class="bottom-nav">
+    <div class="nav-item" id="nav-home-detail">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+      Inicio
+    </div>
+    <div class="nav-item nav-center">
+      <button class="capture-btn" id="btn-capture-detail">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </button>
+      <span class="nav-label">Capturar</span>
+    </div>
+    <div class="nav-item" id="nav-history-detail">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Historial
+    </div>
+  </div>
+</div>
+
+<!-- EXPENSE DETAIL -->
+<div class="screen" id="screen-expense-detail">
+  <div class="header">
+    <button class="btn-back" id="btn-expense-detail-back">← Volver</button>
+    <span class="logo">Trip<span>Trak</span></span>
+    <div style="width:60px;"></div>
+  </div>
+  <div class="content">
+    <div class="review-photo" id="expense-detail-photo">🧾</div>
+    <div class="field">
+      <label>Fecha</label>
+      <input type="date" id="expense-detail-date">
+    </div>
+    <div class="field">
+      <label>Monto</label>
+      <input type="number" id="expense-detail-amount">
+    </div>
+    <div class="field">
+      <label>Moneda</label>
+      <input type="text" id="expense-detail-currency">
+    </div>
+    <div class="field">
+      <label>Descripción</label>
+      <input type="text" id="expense-detail-description">
+    </div>
+    <p class="section-title" style="padding:0 0 10px;">Tipo de gasto</p>
+    <div class="category-chips" id="expense-detail-chips"></div>
+    <button class="btn-primary" id="btn-save-expense-detail">Guardar cambios</button>
+    <button class="btn-secondary" id="btn-delete-expense-detail" style="margin-top:8px; color:var(--red); border-color:var(--red);">🗑️ Eliminar gasto</button>
+  </div>
+</div>
 <!-- HISTORY -->
-  <!-- HISTORY -->
-  <div class="screen" id="screen-history">
+   <div class="screen" id="screen-history">
     <div class="header">
       <span class="logo">Trip<span>Trak</span></span>
       <div class="avatar" id="btn-profile-history">CM</div>
