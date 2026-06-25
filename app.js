@@ -570,11 +570,6 @@ document.getElementById('btn-enable-edit').addEventListener('click', () => {
     document.getElementById('detail-edit-mode').style.display = 'none';
   });
 
-  document.getElementById('btn-toggle-expenses').addEventListener('click', () => {
-    const list = document.getElementById('detail-expenses-list');
-    list.style.display = list.style.display === 'none' ? 'block' : 'none';
-  });
-
   document.getElementById('btn-save-trip-detail').addEventListener('click', async () => {
     const trip = state.trips.find(t => t.id === window._detailTripId);
     if (!trip) return;
