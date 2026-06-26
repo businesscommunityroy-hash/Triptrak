@@ -10,6 +10,7 @@ const GOOGLE_SCOPES = [
 let googleToken = null;
 let googleUser = null;
 let tokenExpiresAt = parseInt(localStorage.getItem('triptrak_token_expires') || '0');
+let _lastKnownDriveModified = 0;
 if (Date.now() < tokenExpiresAt) {
   googleToken = localStorage.getItem('triptrak_token') || null;
 }
@@ -221,14 +222,11 @@ function hideLoading() {
 // ─── INIT ────────────────────────────────────────────────────────────────────
 function init() {
   load();
-  autoDetectTrip();
 
   if (!state.user) {
     showScreen('login');
   } else {
-    updateAvatars();
-    renderHome();
-    showScreen('home');
+    showLoading('Cargando tus datos...');
     syncOnLoad();
   }
 
@@ -239,6 +237,11 @@ async function syncOnLoad() {
   const token = await getValidTokenSilentOnly();
   if (!token) {
     console.log('Sync al cargar: no se pudo obtener token silenciosamente, se omite esta vez.');
+    hideLoading();
+    autoDetectTrip();
+    updateAvatars();
+    renderHome();
+    showScreen('home');
     return;
   }
 
@@ -250,15 +253,15 @@ async function syncOnLoad() {
     if (driveData.profile) {
       state.user = { ...state.user, ...driveData.profile, initials: getInitials(driveData.profile.name) };
     }
-    autoDetectTrip();
-
-    const homeScreen = document.getElementById('screen-home');
-    if (homeScreen && homeScreen.classList.contains('active')) {
-      renderHome();
-      updateAvatars();
-    }
   }
+
+  autoDetectTrip();
+  hideLoading();
+  updateAvatars();
+  renderHome();
+  showScreen('home');
 }
+
 // ─── AUTO DETECT ACTIVE TRIP ─────────────────────────────────────────────────
 function autoDetectTrip() {
   // Si el activeTrip actual ya no existe en la lista de trips, limpiarlo
@@ -562,7 +565,7 @@ document.getElementById('btn-gallery').addEventListener('click', () => {
   document.getElementById('btn-analyze-back').addEventListener('click', () => showScreen('home'));
  
   // PROFILE
-  document.getElementById('btn-profile-back').addEventListener('click', goToHomeAndReleaseTrip);
+    document.getElementById('btn-profile-back').addEventListener('click', goToHomeAndReleaseTrip);
   document.getElementById('btn-profile-save').addEventListener('click', () => {
     const name = document.getElementById('profile-name').value.trim();
     const company = document.getElementById('profile-company').value.trim();
@@ -2495,12 +2498,15 @@ async function loadDataFromDrive() {
     });
     const data = await res.json();
     window._driveFileId = fileInfo.fileId;
+    _lastKnownDriveModified = data.lastModified || 0;
     return data;
   } catch (err) {
     console.error('Error leyendo JSON de Drive:', err);
     return null;
   }
 }
+
+
 async function saveDataToDrive() {
   logAction('saveDataToDrive', 'pending', `Trips: ${state.trips.length}, Expenses: ${state.expenses.length}`);
   await getValidToken();
@@ -2518,11 +2524,30 @@ async function saveDataToDrive() {
     window._driveFileId = fileInfo.fileId;
   }
 
+  // Verificar si Drive tiene una version mas reciente que la que conocemos
+  try {
+    const checkRes = await fetch(`https://www.googleapis.com/drive/v3/files/${window._driveFileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${googleToken}` },
+    });
+    const currentDriveData = await checkRes.json();
+    const driveModified = currentDriveData.lastModified || 0;
+
+    if (driveModified > _lastKnownDriveModified) {
+      logAction('saveDataToDrive', 'failed', `CONFLICTO: Drive tiene version mas reciente (${driveModified}) que la conocida (${_lastKnownDriveModified})`);
+      const proceed = confirm('⚠️ Los datos en Drive cambiaron desde otro dispositivo.\n\nSi continuás, podrías perder esos cambios.\n\n¿Querés sincronizar primero? (Recomendado: Cancelar y tocar "Sincronizar")');
+      if (!proceed) return;
+    }
+  } catch (err) {
+    console.warn('No se pudo verificar version actual de Drive antes de guardar:', err);
+  }
+
+  const now = Date.now();
   const dataToSave = {
     trips: state.trips,
     expenses: state.expenses.map(e => ({ ...e, image: null })),
     categories: state.categories,
     profile: { name: state.user.name, company: state.user.company, email: state.user.email },
+    lastModified: now,
   };
 
   try {
@@ -2541,13 +2566,13 @@ async function saveDataToDrive() {
       return;
     }
 
+    _lastKnownDriveModified = now;
     logAction('saveDataToDrive', 'success', `Guardado: ${state.trips.length} viajes`);
   } catch (err) {
     console.error('Error guardando JSON en Drive:', err);
     logAction('saveDataToDrive', 'failed', `Excepción: ${err.message}`);
   }
 }
-
 async function runDiagnostic() {
   showLoading('Comparando memoria vs Drive...');
 
