@@ -346,10 +346,14 @@ function bindEvents() {
     showScreen('home');
   });
  
-  // HOME → PROFILE
+// HOME → PROFILE
   document.getElementById('btn-profile').addEventListener('click', () => {
     document.getElementById('profile-name').value = state.user.name;
     document.getElementById('profile-company').value = state.user.company;
+    document.getElementById('profile-name-view').textContent = `Nombre: ${state.user.name}`;
+    document.getElementById('profile-company-view').textContent = `Empresa: ${state.user.company || 'Sin empresa'}`;
+    document.getElementById('profile-view-mode').style.display = 'block';
+    document.getElementById('profile-edit-mode').style.display = 'none';
     showScreen('profile');
   });
   document.getElementById('btn-profile-history').addEventListener('click', () => {
@@ -558,7 +562,7 @@ document.getElementById('btn-gallery').addEventListener('click', () => {
   document.getElementById('btn-analyze-back').addEventListener('click', () => showScreen('home'));
  
   // PROFILE
-  document.getElementById('btn-profile-back').addEventListener('click', () => showScreen('home'));
+  document.getElementById('btn-profile-back').addEventListener('click', goToHomeAndReleaseTrip);
   document.getElementById('btn-profile-save').addEventListener('click', () => {
     const name = document.getElementById('profile-name').value.trim();
     const company = document.getElementById('profile-company').value.trim();
@@ -566,7 +570,20 @@ document.getElementById('btn-gallery').addEventListener('click', () => {
     state.user = { ...state.user, name, company, initials: getInitials(name) };
     save();
     updateAvatars();
-    alert('Perfil guardado.');
+    showToast('Perfil guardado correctamente', '✅');
+    document.getElementById('profile-name-view').textContent = `Nombre: ${name}`;
+    document.getElementById('profile-company-view').textContent = `Empresa: ${company || 'Sin empresa'}`;
+    document.getElementById('profile-view-mode').style.display = 'block';
+    document.getElementById('profile-edit-mode').style.display = 'none';
+  });
+
+  document.getElementById('btn-enable-edit-profile').addEventListener('click', () => {
+    document.getElementById('profile-view-mode').style.display = 'none';
+    document.getElementById('profile-edit-mode').style.display = 'block';
+  });
+  document.getElementById('btn-cancel-edit-profile').addEventListener('click', () => {
+    document.getElementById('profile-view-mode').style.display = 'block';
+    document.getElementById('profile-edit-mode').style.display = 'none';
   });
   document.getElementById('btn-categories').addEventListener('click', () => {
     renderCategories();
@@ -898,19 +915,7 @@ document.getElementById('btn-enable-edit').addEventListener('click', () => {
     showToast('Gasto eliminado correctamente', '🗑️');
     if (trip) openTripDetail(trip.id);
   });
-// MANAGE TRIPS
-  document.getElementById('btn-manage-trips').addEventListener('click', async () => {
-    showLoading('Sincronizando con Drive...');
-    const driveData = await loadDataFromDrive();
-    if (driveData) {
-      state.trips = driveData.trips || [];
-      state.expenses = driveData.expenses || [];
-      state.categories = driveData.categories || state.categories;
-    }
-    hideLoading();
-    renderManageTrips();
-    showScreen('manage-trips');
-  });
+
   document.getElementById('btn-manage-trips-back').addEventListener('click', () => showScreen('profile'));
 
 
