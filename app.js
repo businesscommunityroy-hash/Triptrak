@@ -2534,8 +2534,20 @@ async function saveDataToDrive() {
 
     if (driveModified > _lastKnownDriveModified) {
       logAction('saveDataToDrive', 'failed', `CONFLICTO: Drive tiene version mas reciente (${driveModified}) que la conocida (${_lastKnownDriveModified})`);
-      const proceed = confirm('⚠️ Los datos en Drive cambiaron desde otro dispositivo.\n\nSi continuás, podrías perder esos cambios.\n\n¿Querés sincronizar primero? (Recomendado: Cancelar y tocar "Sincronizar")');
-      if (!proceed) return;
+      const proceed = confirm('⚠️ Los datos en Drive cambiaron desde otro dispositivo.\n\nSi continuás, podrías perder esos cambios.\n\nAceptar = continuar y sobrescribir (no recomendado)\nCancelar = sincronizar automáticamente con los datos correctos');
+      if (!proceed) {
+        logAction('saveDataToDrive', 'pending', 'Usuario cancelo por conflicto, sincronizando automaticamente');
+        const freshData = await loadDataFromDrive();
+        if (freshData) {
+          state.trips = freshData.trips || [];
+          state.expenses = freshData.expenses || [];
+          state.categories = freshData.categories || state.categories;
+          autoDetectTrip();
+          renderHome();
+          showToast('Sincronizado con los datos correctos', '🔄');
+        }
+        return;
+      }
     }
   } catch (err) {
     console.warn('No se pudo verificar version actual de Drive antes de guardar:', err);
