@@ -2467,6 +2467,14 @@ function openTripDetail(tripId) {
 
   window._detailTripId = tripId;
 
+  // Al ver el detalle de un viaje, lo activamos tambien - asi tiene sentido
+  // poder capturar gastos directamente desde esta pantalla (boton Capturar
+  // del footer) sin que la app diga "primero elegi un viaje".
+  if (!state.activeTrip || state.activeTrip.id !== trip.id) {
+    state.activeTrip = trip;
+    save();
+  }
+
   document.getElementById('detail-trip-name').value = trip.name;
   document.getElementById('detail-trip-start').value = trip.start;
   document.getElementById('detail-trip-end').value = trip.end;
