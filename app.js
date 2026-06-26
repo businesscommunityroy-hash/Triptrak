@@ -61,7 +61,7 @@ async function getValidToken() {
     });
     client.requestAccessToken();
   });
-if (visibleToken) {
+  if (visibleToken) {
     googleToken = visibleToken;
     tokenExpiresAt = Date.now() + 55 * 60 * 1000;
     window._driveToken = googleToken;
@@ -70,6 +70,59 @@ if (visibleToken) {
   }
   return googleToken;
 }
+
+async function getValidTokenSilentOnly() {
+  const now = Date.now();
+
+  if (googleToken && now < tokenExpiresAt) {
+    return googleToken;
+  }
+
+  const silentToken = await new Promise((resolve) => {
+    let resolved = false;
+    const safeResolve = (val) => {
+      if (resolved) return;
+      resolved = true;
+      resolve(val);
+    };
+
+    // Safety timeout: si Safari u otro navegador bloquea el popup silencioso
+    // y nunca llama al callback, nos rendimos despues de 4 segundos en vez
+    // de dejar la app colgada en "Cargando..." para siempre.
+    setTimeout(() => safeResolve(null), 4000);
+
+    try {
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: GOOGLE_SCOPES,
+        prompt: '',
+        callback: (response) => {
+          if (response.error) {
+            safeResolve(null);
+          } else {
+            safeResolve(response.access_token);
+          }
+        },
+      });
+      client.requestAccessToken();
+    } catch (err) {
+      console.warn('Error solicitando token silencioso:', err);
+      safeResolve(null);
+    }
+  });
+
+  if (silentToken) {
+    googleToken = silentToken;
+    tokenExpiresAt = Date.now() + 55 * 60 * 1000;
+    window._driveToken = googleToken;
+    localStorage.setItem('triptrak_token', googleToken);
+    localStorage.setItem('triptrak_token_expires', tokenExpiresAt.toString());
+    return googleToken;
+  }
+
+  return null;
+}
+
 const state = {
   user: null,
   trips: [],
@@ -93,40 +146,7 @@ const state = {
   pendingImage: null,
   selectedCategory: null,
 };
-async function getValidTokenSilentOnly() {
-  const now = Date.now();
 
-  if (googleToken && now < tokenExpiresAt) {
-    return googleToken;
-  }
-
-  const silentToken = await new Promise((resolve) => {
-    const client = google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: GOOGLE_SCOPES,
-      prompt: '',
-      callback: (response) => {
-        if (response.error) {
-          resolve(null);
-        } else {
-          resolve(response.access_token);
-        }
-      },
-    });
-    client.requestAccessToken();
-  });
-
-if (silentToken) {
-    googleToken = silentToken;
-    tokenExpiresAt = Date.now() + 55 * 60 * 1000;
-    window._driveToken = googleToken;
-    localStorage.setItem('triptrak_token', googleToken);
-    localStorage.setItem('triptrak_token_expires', tokenExpiresAt.toString());
-    return googleToken;
-  }
-
-  return null;
-}
 // ─── ACTION LOG (debugging) ────────────────────────────────────────────────────
 let actionLog = [];
 
@@ -158,6 +178,7 @@ function updateSyncIndicator(result) {
     indicator.style.background = 'var(--green)';
   }
 }
+
 function save() {
   const expensesWithoutImages = state.expenses.map(e => ({ ...e, image: null }));
   try {
@@ -180,7 +201,8 @@ function save() {
     }));
   }
   saveDataToDrive();
-} 
+}
+
 function load() {
   const data = localStorage.getItem('triptrack');
   if (!data) return;
@@ -191,14 +213,14 @@ function load() {
   state.expenses = parsed.expenses || [];
   state.categories = parsed.categories || state.categories;
 }
- 
+
 // ─── SCREEN NAVIGATION ───────────────────────────────────────────────────────
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + id).classList.add('active');
   window.scrollTo(0, 0);
 }
- 
+
 // ─── MODAL ───────────────────────────────────────────────────────────────────
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
@@ -218,7 +240,7 @@ function showLoading(text) {
 function hideLoading() {
   document.getElementById('loading-overlay').style.display = 'none';
 }
- 
+
 // ─── INIT ────────────────────────────────────────────────────────────────────
 function init() {
   load();
@@ -277,10 +299,52 @@ function autoDetectTrip() {
     save();
   }
 }
+
+// ─── NAVEGACION CENTRALIZADA ─────────────────────────────────────────────────
+function goToHomeAndReleaseTrip() {
+  state.activeTrip = null;
+  save();
+
+  const today = new Date().toISOString().split('T')[0];
+  const todayTrip = state.trips.find(t => t.start <= today && t.end >= today);
+
+  if (todayTrip) {
+    const confirmActivate = confirm(`Hay un viaje en curso hoy: "${todayTrip.name}" (${formatDate(todayTrip.start)} → ${formatDate(todayTrip.end)}).\n\nAceptar = seleccionar este viaje\nCancelar = quedarme sin viaje seleccionado`);
+    if (confirmActivate) {
+      state.activeTrip = todayTrip;
+      save();
+    }
+  }
+
+  renderHome();
+  showScreen('home');
+}
+
+async function goToHistory() {
+  showLoading('Sincronizando con Drive...');
+  const driveData = await loadDataFromDrive();
+  if (driveData) {
+    state.trips = driveData.trips || [];
+    state.expenses = driveData.expenses || [];
+    state.categories = driveData.categories || state.categories;
+  }
+  hideLoading();
+  renderHistory();
+  showScreen('history');
+}
+
+function goToCapture() {
+  showScreen('capture');
+  const el = document.getElementById('capture-trip-label');
+  if (el) el.textContent = state.activeTrip
+    ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
+    : 'Tomá una foto o subí desde tu galería.';
+}
+
 // ─── BIND EVENTS ─────────────────────────────────────────────────────────────
 function bindEvents() {
- 
-// LOGIN
+
+  // LOGIN
   document.getElementById('btn-login').addEventListener('click', () => {
     const client = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
@@ -336,7 +400,7 @@ function bindEvents() {
     });
     client.requestAccessToken();
   });
- 
+
   // SETUP
   document.getElementById('btn-setup-save').addEventListener('click', () => {
     const name = document.getElementById('setup-name').value.trim();
@@ -348,8 +412,8 @@ function bindEvents() {
     renderHome();
     showScreen('home');
   });
- 
-// HOME → PROFILE
+
+  // HOME → PROFILE
   document.getElementById('btn-profile').addEventListener('click', () => {
     document.getElementById('profile-name').value = state.user.name;
     document.getElementById('profile-company').value = state.user.company;
@@ -362,33 +426,27 @@ function bindEvents() {
   document.getElementById('btn-profile-history').addEventListener('click', () => {
     document.getElementById('profile-name').value = state.user.name;
     document.getElementById('profile-company').value = state.user.company;
+    document.getElementById('profile-name-view').textContent = `Nombre: ${state.user.name}`;
+    document.getElementById('profile-company-view').textContent = `Empresa: ${state.user.company || 'Sin empresa'}`;
+    document.getElementById('profile-view-mode').style.display = 'block';
+    document.getElementById('profile-edit-mode').style.display = 'none';
     showScreen('profile');
   });
- 
-  // HOME → CAPTURE
-  document.getElementById('btn-capture').addEventListener('click', () => {
-    showScreen('capture');
-    const el = document.getElementById('capture-trip-label');
-    if (el) el.textContent = state.activeTrip 
-      ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
-      : 'Tomá una foto o subí desde tu galería.';
-  });
-  document.getElementById('btn-capture-2').addEventListener('click', () => {
-    showScreen('capture');
-    const el = document.getElementById('capture-trip-label');
-    if (el) el.textContent = state.activeTrip 
-      ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
-      : 'Tomá una foto o subí desde tu galería.';
-  });
 
- 
+  // HOME → CAPTURE (centralizado)
+  document.getElementById('btn-capture').addEventListener('click', goToCapture);
+  document.getElementById('btn-capture-2').addEventListener('click', goToCapture);
+  document.getElementById('btn-capture-analyze').addEventListener('click', goToCapture);
+  document.getElementById('btn-capture-trip-expenses').addEventListener('click', goToCapture);
+  document.getElementById('btn-capture-detail').addEventListener('click', goToCapture);
+
   // HOME → ANALYZE
   document.getElementById('btn-analyze').addEventListener('click', () => {
     renderAnalyze();
     showScreen('analyze');
   });
- 
-// HOME → NEW TRIP
+
+  // HOME → NEW TRIP
   document.getElementById('btn-new-trip').addEventListener('click', () => {
     openModal('modal-new-trip');
   });
@@ -403,8 +461,9 @@ function bindEvents() {
     }
     checkTripOverlap();
   });
-// HOME → CHANGE TRIP
-document.getElementById('btn-change-trip').addEventListener('click', async () => {
+
+  // HOME → CHANGE TRIP
+  document.getElementById('btn-change-trip').addEventListener('click', async () => {
     showLoading('Sincronizando con Drive...');
     const driveData = await loadDataFromDrive();
     if (driveData) {
@@ -417,7 +476,7 @@ document.getElementById('btn-change-trip').addEventListener('click', async () =>
     openModal('modal-change-trip');
   });
   document.getElementById('btn-cancel-change-trip').addEventListener('click', () => closeModal('modal-change-trip'));
- 
+
   // HOME → DRIVE
   document.getElementById('btn-view-drive').addEventListener('click', () => {
     if (state.activeTrip && state.activeTrip.driveUrl) {
@@ -426,15 +485,14 @@ document.getElementById('btn-change-trip').addEventListener('click', async () =>
       alert('Todavía no hay carpeta de Drive para este viaje. Se creará cuando guardes el primer recibo.');
     }
   });
- 
-  // REMINDER CLOSE
+
+  // QUICK EDIT desde Home
   document.getElementById('btn-edit-trip-quick').addEventListener('click', () => {
     if (!state.activeTrip) return alert('No hay viaje activo.');
-    editTrip(state.activeTrip.id);
+    openTripDetail(state.activeTrip.id);
   });
 
- 
-document.getElementById('btn-sync').addEventListener('click', async () => {
+  document.getElementById('btn-sync').addEventListener('click', async () => {
     showLoading('Sincronizando con Drive...');
     const driveData = await loadDataFromDrive();
     if (driveData) {
@@ -453,7 +511,8 @@ document.getElementById('btn-sync').addEventListener('click', async () => {
     }
     hideLoading();
   });
-  // GOOGLE CALENDAR
+
+  // GOOGLE CALENDAR (Home)
   document.getElementById('btn-add-calendar').addEventListener('click', async () => {
     if (!state.activeTrip) return alert('No hay viaje activo.');
     if (state.activeTrip.calendarEventId) {
@@ -465,50 +524,28 @@ document.getElementById('btn-sync').addEventListener('click', async () => {
   document.getElementById('btn-reminder-close').addEventListener('click', () => {
     document.getElementById('reminder').style.display = 'none';
   });
- 
-// NEW TRIP — check overlap on date change
+
+  // NEW TRIP — check overlap on date change
   document.getElementById('new-trip-end').addEventListener('change', checkTripOverlap);
- 
+
   // CREATE TRIP
   document.getElementById('btn-create-trip').addEventListener('click', createTrip);
- 
-  // NAV — HISTORY
-  document.getElementById('nav-history').addEventListener('click', () => {
-    renderHistory();
-    showScreen('history');
-  });
-  document.getElementById('nav-history-2').addEventListener('click', () => {
-    renderHistory();
-    showScreen('history');
-  });
+
+  // NAV → INICIO (centralizado, siempre suelta el viaje activo)
   document.getElementById('nav-home').addEventListener('click', goToHomeAndReleaseTrip);
   document.getElementById('nav-home-2').addEventListener('click', goToHomeAndReleaseTrip);
   document.getElementById('nav-home-analyze').addEventListener('click', goToHomeAndReleaseTrip);
-  document.getElementById('btn-capture-analyze').addEventListener('click', () => {
-    
-    showScreen('capture');
-    const el = document.getElementById('capture-trip-label');
-    if (el) el.textContent = state.activeTrip 
-      ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
-      : 'Tomá una foto o subí desde tu galería.';
-  });
-  document.getElementById('nav-history-analyze').addEventListener('click', () => {
-    renderHistory();
-    showScreen('history');
-  });
- document.getElementById('nav-home-trip-expenses').addEventListener('click', goToHomeAndReleaseTrip);
-  document.getElementById('btn-capture-trip-expenses').addEventListener('click', () => {
-    showScreen('capture');
-    const el = document.getElementById('capture-trip-label');
-    if (el) el.textContent = state.activeTrip 
-      ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
-      : 'Tomá una foto o subí desde tu galería.';
-  });
-  document.getElementById('nav-history-trip-expenses').addEventListener('click', () => {
-    renderHistory();
-    showScreen('history');
-  });
-// CAPTURE
+  document.getElementById('nav-home-trip-expenses').addEventListener('click', goToHomeAndReleaseTrip);
+  document.getElementById('nav-home-detail').addEventListener('click', goToHomeAndReleaseTrip);
+
+  // NAV → HISTORIAL (centralizado, sincroniza antes de mostrar)
+  document.getElementById('nav-history').addEventListener('click', goToHistory);
+  document.getElementById('nav-history-2').addEventListener('click', goToHistory);
+  document.getElementById('nav-history-analyze').addEventListener('click', goToHistory);
+  document.getElementById('nav-history-trip-expenses').addEventListener('click', goToHistory);
+  document.getElementById('nav-history-detail').addEventListener('click', goToHistory);
+
+  // CAPTURE
   document.getElementById('upload-zone').addEventListener('click', () => {
     if (!state.activeTrip) {
       alert('Primero seleccioná o creá un viaje desde "Cambiar viaje".');
@@ -519,7 +556,7 @@ document.getElementById('btn-sync').addEventListener('click', async () => {
   document.getElementById('file-input').addEventListener('change', (e) => {
     handleImageFile(e.target.files[0]);
   });
-document.getElementById('btn-gallery').addEventListener('click', () => {
+  document.getElementById('btn-gallery').addEventListener('click', () => {
     if (!state.activeTrip) {
       alert('Primero seleccioná o creá un viaje desde "Cambiar viaje".');
       return;
@@ -543,7 +580,7 @@ document.getElementById('btn-gallery').addEventListener('click', () => {
     });
     input.click();
   });
- 
+
   // DRAG & DROP
   const zone = document.getElementById('upload-zone');
   zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.borderColor = 'var(--accent)'; });
@@ -553,19 +590,19 @@ document.getElementById('btn-gallery').addEventListener('click', () => {
     zone.style.borderColor = '';
     if (e.dataTransfer.files[0]) handleImageFile(e.dataTransfer.files[0]);
   });
- 
+
   // REVIEW — BACK
   document.getElementById('btn-review-back').addEventListener('click', () => showScreen('capture'));
   document.getElementById('btn-capture-back').addEventListener('click', () => showScreen('home'));
- 
+
   // SAVE EXPENSE
   document.getElementById('btn-save-expense').addEventListener('click', saveExpense);
- 
+
   // ANALYZE — BACK
   document.getElementById('btn-analyze-back').addEventListener('click', () => showScreen('home'));
- 
+
   // PROFILE
-    document.getElementById('btn-profile-back').addEventListener('click', goToHomeAndReleaseTrip);
+  document.getElementById('btn-profile-back').addEventListener('click', goToHomeAndReleaseTrip);
   document.getElementById('btn-profile-save').addEventListener('click', () => {
     const name = document.getElementById('profile-name').value.trim();
     const company = document.getElementById('profile-company').value.trim();
@@ -579,7 +616,6 @@ document.getElementById('btn-gallery').addEventListener('click', () => {
     document.getElementById('profile-view-mode').style.display = 'block';
     document.getElementById('profile-edit-mode').style.display = 'none';
   });
-
   document.getElementById('btn-enable-edit-profile').addEventListener('click', () => {
     document.getElementById('profile-view-mode').style.display = 'none';
     document.getElementById('profile-edit-mode').style.display = 'block';
@@ -592,8 +628,9 @@ document.getElementById('btn-gallery').addEventListener('click', () => {
     renderCategories();
     showScreen('categories');
   });
- // MANUAL EXPENSE
-document.getElementById('btn-manual').addEventListener('click', async () => {
+
+  // MANUAL EXPENSE
+  document.getElementById('btn-manual').addEventListener('click', async () => {
     if (!state.activeTrip) {
       alert('Primero seleccioná o creá un viaje desde "Cambiar viaje".');
       showScreen('home');
@@ -620,12 +657,13 @@ document.getElementById('btn-manual').addEventListener('click', async () => {
     document.getElementById('manual-photo-preview').style.display = 'none';
     document.getElementById('manual-photo-thumb').src = '';
     state.pendingImage = null;
-    document.getElementById('manual-screen-title').textContent = state.activeTrip 
+    document.getElementById('manual-screen-title').textContent = state.activeTrip
       ? `Gasto manual — ${state.activeTrip.name} (${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)})`
       : 'Gasto manual';
     showScreen('manual');
   });
   document.getElementById('btn-manual-back').addEventListener('click', () => showScreen('capture'));
+
   // MANUAL PHOTO
   document.getElementById('manual-upload-zone').addEventListener('click', () => {
     document.getElementById('manual-file-input').click();
@@ -634,20 +672,21 @@ document.getElementById('btn-manual').addEventListener('click', async () => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
- reader.onload = (ev) => {
+    reader.onload = (ev) => {
       state.pendingImage = { dataUrl: ev.target.result, file };
       document.getElementById('manual-photo-thumb').src = ev.target.result;
       document.getElementById('photo-fullscreen-img').src = ev.target.result;
       document.getElementById('manual-photo-preview').style.display = 'block';
       document.getElementById('manual-upload-zone').style.display = 'none';
-
     };
     reader.readAsDataURL(file);
   });
   document.getElementById('btn-save-manual').addEventListener('click', saveManualExpense);
   document.getElementById('btn-trip-expenses-back').addEventListener('click', () => showScreen('manage-trips'));
   document.getElementById('btn-trip-detail-back').addEventListener('click', () => showScreen('manage-trips'));
-document.getElementById('btn-enable-edit').addEventListener('click', () => {
+
+  // TRIP DETAIL — edit toggle
+  document.getElementById('btn-enable-edit').addEventListener('click', () => {
     document.getElementById('detail-view-mode').style.display = 'none';
     document.getElementById('detail-edit-mode').style.display = 'block';
   });
@@ -656,6 +695,7 @@ document.getElementById('btn-enable-edit').addEventListener('click', () => {
     document.getElementById('detail-edit-mode').style.display = 'none';
   });
 
+  // TRIP DETAIL — save (UNICA copia)
   document.getElementById('btn-save-trip-detail').addEventListener('click', async () => {
     const trip = state.trips.find(t => t.id === window._detailTripId);
     if (!trip) return;
@@ -710,16 +750,19 @@ document.getElementById('btn-enable-edit').addEventListener('click', () => {
     renderHome();
   });
 
+  // TRIP DETAIL — delete (UNICA copia)
   document.getElementById('btn-detail-delete-trip').addEventListener('click', async () => {
     await deleteTrip(window._detailTripId);
     showScreen('home');
   });
 
+  // TRIP DETAIL — drive (UNICA copia)
   document.getElementById('btn-detail-drive').addEventListener('click', () => {
     const trip = state.trips.find(t => t.id === window._detailTripId);
     if (trip && trip.driveUrl) window.open(trip.driveUrl, '_blank');
   });
 
+  // TRIP DETAIL — calendar (UNICA copia)
   document.getElementById('btn-detail-calendar').addEventListener('click', async () => {
     const trip = state.trips.find(t => t.id === window._detailTripId);
     if (!trip) return;
@@ -731,106 +774,19 @@ document.getElementById('btn-enable-edit').addEventListener('click', () => {
     openTripDetail(trip.id);
   });
 
-  document.getElementById('nav-home-detail').addEventListener('click', goToHomeAndReleaseTrip);
-  document.getElementById('btn-capture-detail').addEventListener('click', () => {
-    showScreen('capture');
-    const el = document.getElementById('capture-trip-label');
-    if (el) el.textContent = state.activeTrip 
-      ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
-      : 'Tomá una foto o subí desde tu galería.';
-  });
-  document.getElementById('nav-history-detail').addEventListener('click', () => {
-    renderHistory();
-    showScreen('history');
-  });
+  // TRIP DETAIL — toggle expenses list (UNICA copia)
   document.getElementById('btn-toggle-expenses').addEventListener('click', () => {
     const list = document.getElementById('detail-expenses-list');
     list.style.display = list.style.display === 'none' ? 'block' : 'none';
   });
 
-  document.getElementById('btn-save-trip-detail').addEventListener('click', async () => {
-    const trip = state.trips.find(t => t.id === window._detailTripId);
-    if (!trip) return;
-
-    const newName = document.getElementById('detail-trip-name').value.trim();
-    const newStart = document.getElementById('detail-trip-start').value;
-    const newEnd = document.getElementById('detail-trip-end').value;
-
-    if (!newName || !newStart || !newEnd) return alert('Completá todos los campos.');
-    if (newStart > newEnd) return alert('La fecha de inicio debe ser antes que la de fin.');
-
-    const expenses = getTripExpenses(trip.id);
-    const outOfRange = expenses.filter(e => e.date < newStart || e.date > newEnd);
-    if (outOfRange.length > 0) {
-      return alert(`No podés cambiar las fechas porque ${outOfRange.length} gasto(s) quedarían fuera del rango.`);
-    }
-
-    const idx = state.trips.findIndex(t => t.id === trip.id);
-    state.trips[idx] = { ...trip, name: newName, start: newStart, end: newEnd };
-    if (state.activeTrip && state.activeTrip.id === trip.id) {
-      state.activeTrip = state.trips[idx];
-    }
-    save();
-
-    showLoading('Actualizando Drive y Sheet...');
-    await getValidToken();
-
-    if (googleToken) {
-      if (trip.driveFolderId) {
-        try {
-          await fetch(`https://www.googleapis.com/drive/v3/files/${trip.driveFolderId}`, {
-            method: 'PATCH',
-            headers: { Authorization: `Bearer ${googleToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: `${newStart}_${newName}` }),
-          });
-        } catch (err) { console.error('Error renombrando carpeta:', err); }
-      }
-      if (trip.sheetId) {
-        try {
-          await fetch(`https://www.googleapis.com/drive/v3/files/${trip.sheetId}`, {
-            method: 'PATCH',
-            headers: { Authorization: `Bearer ${googleToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: `${newStart}_${newName}` }),
-          });
-        } catch (err) { console.error('Error renombrando sheet:', err); }
-      }
-    }
-
-    hideLoading();
-    showToast('Viaje actualizado correctamente', '✅');
-    openTripDetail(trip.id);
-    renderHome();
-  });
-
-
-  document.getElementById('btn-detail-calendar').addEventListener('click', async () => {
-    const trip = state.trips.find(t => t.id === window._detailTripId);
-    if (!trip) return;
-    if (trip.calendarEventId) {
-      await removeFromGoogleCalendar(trip);
-    } else {
-      await addTripToGoogleCalendar(trip);
-    }
-    openTripDetail(trip.id);
-  });
-
-  document.getElementById('nav-home-detail').addEventListener('click', goToHomeAndReleaseTrip);
-  document.getElementById('btn-capture-detail').addEventListener('click', () => {
-    showScreen('capture');
-    const el = document.getElementById('capture-trip-label');
-    if (el) el.textContent = state.activeTrip 
-      ? `${state.activeTrip.name} · ${formatDate(state.activeTrip.start)} → ${formatDate(state.activeTrip.end)}`
-      : 'Tomá una foto o subí desde tu galería.';
-  });
-  document.getElementById('nav-history-detail').addEventListener('click', () => {
-    renderHistory();
-    showScreen('history');
-  });
+  // EXPENSE DETAIL — back
   document.getElementById('btn-expense-detail-back').addEventListener('click', () => {
     const trip = state.trips.find(t => t.id === window._detailTripId);
     if (trip) openTripDetail(trip.id);
   });
 
+  // EXPENSE DETAIL — save
   document.getElementById('btn-save-expense-detail').addEventListener('click', async () => {
     const expense = state.expenses.find(e => e.id === window._detailExpenseId);
     if (!expense) return;
@@ -921,7 +877,6 @@ document.getElementById('btn-enable-edit').addEventListener('click', () => {
 
   document.getElementById('btn-manage-trips-back').addEventListener('click', () => showScreen('profile'));
 
-
   // DEV MODE TOGGLE
   const devToggle = document.getElementById('toggle-dev-mode');
   const devSlider = document.getElementById('dev-toggle-slider');
@@ -976,24 +931,24 @@ document.getElementById('btn-enable-edit').addEventListener('click', () => {
     location.reload();
   });
 }
- 
+
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function getInitials(name) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 }
- 
+
 function updateAvatars() {
   const initials = state.user ? state.user.initials || '?' : '?';
   document.getElementById('btn-profile').textContent = initials;
   document.getElementById('btn-profile-history').textContent = initials;
 }
- 
+
 function formatDate(dateStr) {
   if (!dateStr) return '—';
   const d = new Date(dateStr + 'T12:00:00');
   return d.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' });
 }
- 
+
 function tripDayInfo(trip) {
   const today = new Date();
   const start = new Date(trip.start + 'T00:00:00');
@@ -1002,11 +957,11 @@ function tripDayInfo(trip) {
   const elapsed = Math.max(1, Math.min(Math.round((today - start) / (1000 * 60 * 60 * 24)) + 1, total));
   return { total, elapsed };
 }
- 
+
 function getTripExpenses(tripId) {
   return state.expenses.filter(e => e.tripId === tripId);
 }
- 
+
 function getCategoryTotals(expenses) {
   const totals = {};
   expenses.forEach(e => {
@@ -1014,7 +969,7 @@ function getCategoryTotals(expenses) {
   });
   return totals;
 }
- 
+
 // ─── RENDER HOME ─────────────────────────────────────────────────────────────
 function renderHome() {
   const trip = state.activeTrip;
@@ -1092,7 +1047,7 @@ function renderHomeNoTripSuggestions() {
     `).join('')}
   `;
 }
- 
+
 function renderStatsGrid() {
   const grid = document.getElementById('stats-grid');
   if (!state.activeTrip) { grid.innerHTML = ''; return; }
@@ -1118,20 +1073,20 @@ function renderStatsGrid() {
   `;
   }).join('');
 }
- 
+
 function renderExpensesList() {
   const list = document.getElementById('expenses-list');
   if (!state.activeTrip) { list.innerHTML = ''; return; }
- 
+
   const expenses = getTripExpenses(state.activeTrip.id).slice().reverse().slice(0, 10);
- 
+
   if (expenses.length === 0) {
     list.innerHTML = '<div class="empty-state">📭<p>No hay recibos aún.<br>Tocá el botón de cámara para empezar.</p></div>';
     return;
   }
- 
+
   const icons = { '🍽️ Comida': { icon: '🍽️', color: 'rgba(46,204,143,0.1)' }, '🏨 Hotel': { icon: '🏨', color: 'rgba(124,92,252,0.1)' }, '✈️ Vuelo': { icon: '✈️', color: 'rgba(79,127,255,0.1)' }, '⛽ Combustible': { icon: '⛽', color: 'rgba(79,127,255,0.1)' }, '🚕 Transporte': { icon: '🚕', color: 'rgba(245,166,35,0.1)' }, '🎭 Entretenimiento': { icon: '🎭', color: 'rgba(255,92,92,0.1)' }, '📦 Otro': { icon: '📦', color: 'rgba(139,144,167,0.1)' } };
- 
+
   list.innerHTML = expenses.map(e => {
     const meta = icons[e.category] || { icon: '📦', color: 'rgba(139,144,167,0.1)' };
     return `
@@ -1149,7 +1104,7 @@ function renderExpensesList() {
     `;
   }).join('');
 }
- 
+
 function checkReminder() {
   if (!state.activeTrip) return;
   const today = new Date().toISOString().split('T')[0];
@@ -1160,17 +1115,17 @@ function checkReminder() {
   const tripStarted = state.activeTrip && state.activeTrip.start <= today2 && state.activeTrip.end >= today2;
   reminder.style.display = (tripStarted && todayExpenses.length === 0) ? 'flex' : 'none';
 }
- 
+
 // ─── TRIP OVERLAP ─────────────────────────────────────────────────────────────
 function checkTripOverlap() {
   const start = document.getElementById('new-trip-start').value;
   const end = document.getElementById('new-trip-end').value;
   if (!start || !end) return;
- 
+
   const overlap = state.trips.some(t => !(end < t.start || start > t.end));
   document.getElementById('modal-overlap-alert').style.display = overlap ? 'block' : 'none';
 }
- 
+
 async function createTrip() {
   const btn = document.getElementById('btn-create-trip');
   if (btn.disabled) return;
@@ -1194,6 +1149,17 @@ async function createTrip() {
   const today = new Date().toISOString().split('T')[0];
   if (end < today) {
     const continuar = confirm(`⚠️ Las fechas de este viaje ya pasaron. ¿Querés crearlo de todas formas?`);
+    if (!continuar) {
+      btn.disabled = false;
+      btn.textContent = 'Crear viaje →';
+      return;
+    }
+  }
+
+  // Verificar duplicado exacto (mismo nombre + mismas fechas)
+  const exactDuplicate = state.trips.find(t => t.name.toLowerCase() === name.toLowerCase() && t.start === start && t.end === end);
+  if (exactDuplicate) {
+    const continuar = confirm(`⚠️ Ya existe un viaje "${name}" con esas mismas fechas. ¿Querés crear uno duplicado de todas formas?`);
     if (!continuar) {
       btn.disabled = false;
       btn.textContent = 'Crear viaje →';
@@ -1255,6 +1221,7 @@ function compressImage(dataUrl, callback) {
   };
   img.src = dataUrl;
 }
+
 function showReviewScreen(dataUrl) {
   const photo = document.getElementById('review-photo');
   photo.innerHTML = `<img src="${dataUrl}" alt="Recibo">`;
@@ -1273,7 +1240,6 @@ function showReviewScreen(dataUrl) {
   }
 }
 
- 
 // ─── AI PROCESSING ────────────────────────────────────────────────────────────
 async function processImageWithAI(dataUrl) {
   const base64 = dataUrl.split(',')[1];
@@ -1314,7 +1280,7 @@ async function processImageWithAI(dataUrl) {
     alert('No se pudo leer el recibo automáticamente. Ingresá los datos manualmente.');
   }
 }
- 
+
 // ─── CURRENCY CONVERSION ─────────────────────────────────────────────────────
 async function convertToUSD(amount, currency) {
   if (!amount || !currency) return;
@@ -1322,7 +1288,7 @@ async function convertToUSD(amount, currency) {
     document.getElementById('field-usd').value = parseFloat(amount).toFixed(2);
     return;
   }
- 
+
   try {
     const res = await fetch(`https://api.exchangerate-api.com/v4/latest/${currency}`);
     const data = await res.json();
@@ -1335,13 +1301,13 @@ async function convertToUSD(amount, currency) {
     document.getElementById('field-usd').value = amount;
   }
 }
- 
+
 // ─── CATEGORY CHIPS ──────────────────────────────────────────────────────────
 function renderCategoryChips() {
   const container = document.getElementById('category-chips');
   const active = state.categories.filter(c => c.active);
   state.selectedCategory = null;
- 
+
   container.innerHTML = active.map(c =>
     `<div class="chip" data-cat="${c.name}" onclick="selectChip(this)">${c.name}</div>`
   ).join('') + `<div id="otro-field" style="display:none; width:100%; margin-top:8px;">
@@ -1349,7 +1315,7 @@ function renderCategoryChips() {
         style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px; width:100%; color:var(--text); font-family:Inter,sans-serif; font-size:14px; outline:none;">
     </div>`;
 }
- 
+
 function selectChip(el) {
   document.querySelectorAll('#category-chips .chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
@@ -1362,7 +1328,7 @@ function selectChip(el) {
     otroField.style.display = 'none';
   }
 }
- 
+
 function preselectCategory(aiCategory) {
   if (!aiCategory) return;
   const chips = document.querySelectorAll('#category-chips .chip');
@@ -1373,7 +1339,7 @@ function preselectCategory(aiCategory) {
     }
   });
 }
- 
+
 // ─── SAVE EXPENSE ─────────────────────────────────────────────────────────────
 async function saveExpense() {
   const btn = document.getElementById('btn-save-expense');
@@ -1453,20 +1419,21 @@ async function saveExpense() {
   showScreen('home');
   showToast('Gasto guardado correctamente');
 }
+
 // ─── ANALYZE ─────────────────────────────────────────────────────────────────
 function renderAnalyze() {
   if (!state.activeTrip) return;
   const trip = state.activeTrip;
   const expenses = getTripExpenses(trip.id);
   const { total, elapsed } = tripDayInfo(trip);
- 
+
   document.getElementById('analyze-trip-name').textContent = trip.name;
- 
+
   const totalSpent = expenses.reduce((s, e) => s + (parseFloat(e.amountUSD) || 0), 0);
   const daysWithExpenses = new Set(expenses.map(e => e.date)).size;
   const avgPerDay = daysWithExpenses > 0 ? totalSpent / daysWithExpenses : 0;
   const projection = avgPerDay * total;
- 
+
   document.getElementById('analyze-stats').innerHTML = `
     <div class="stat-card">
       <div class="stat-icon">💰</div>
@@ -1484,7 +1451,7 @@ function renderAnalyze() {
       <p class="stat-label">Promedio por día</p>
     </div>
   `;
- 
+
   const totals = getCategoryTotals(expenses);
   const maxVal = Math.max(...Object.values(totals), 1);
   document.getElementById('analyze-categories').innerHTML = Object.entries(totals).map(([cat, val]) => `
@@ -1498,13 +1465,13 @@ function renderAnalyze() {
       </div>
     </div>
   `).join('') || '<p style="color:var(--text2);font-size:13px;">Sin gastos aún.</p>';
- 
+
   const dayMap = {};
   expenses.forEach(e => {
     const d = e.date || 'Sin fecha';
     dayMap[d] = (dayMap[d] || 0) + (parseFloat(e.amountUSD) || 0);
   });
- 
+
   document.getElementById('analyze-days').innerHTML = Object.entries(dayMap).sort().map(([day, val]) => `
     <div class="day-row">
       <span class="day-label">${formatDate(day)}</span>
@@ -1512,7 +1479,7 @@ function renderAnalyze() {
     </div>
   `).join('') || '<p style="color:var(--text2);font-size:13px;">Sin gastos aún.</p>';
 }
- 
+
 // ─── HISTORY ─────────────────────────────────────────────────────────────────
 function renderHistory() {
   const list = document.getElementById('history-list');
@@ -1533,6 +1500,7 @@ function renderHistory() {
     `;
   }).join('');
 }
+
 // ─── CATEGORIES MANAGEMENT ───────────────────────────────────────────────────
 function renderCategories() {
   const list = document.getElementById('categories-list');
@@ -1548,20 +1516,20 @@ function renderCategories() {
     </div>
   `).join('');
 }
- 
+
 function toggleCategory(idx) {
   state.categories[idx].active = !state.categories[idx].active;
   save();
   renderCategories();
 }
- 
+
 function deleteCategory(idx) {
   if (!confirm(`¿Eliminar "${state.categories[idx].name}"?`)) return;
   state.categories.splice(idx, 1);
   save();
   renderCategories();
 }
- 
+
 function addCategory() {
   const input = document.getElementById('new-category-input');
   const name = input.value.trim();
@@ -1571,6 +1539,7 @@ function addCategory() {
   input.value = '';
   renderCategories();
 }
+
 function renderManualCategoryChips() {
   const container = document.getElementById('manual-category-chips');
   const active = state.categories.filter(c => c.active);
@@ -1699,6 +1668,7 @@ async function addTripToGoogleCalendar(trip) {
   if (!token) return alert('Error al conectar con Google.');
   await createCalendarEvent(trip, token);
 }
+
 async function createCalendarEvent(trip, token) {
   const endDate = new Date(trip.end + 'T00:00:00');
   endDate.setDate(endDate.getDate() + 1);
@@ -1738,12 +1708,14 @@ async function createCalendarEvent(trip, token) {
     alert('Error al conectar con Google Calendar.');
   }
 }
+
 async function fetchGoogleUserInfo(token) {
   const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
     headers: { Authorization: `Bearer ${token}` }
   });
   return await res.json();
 }
+
 // ─── GOOGLE DRIVE ─────────────────────────────────────────────────────────────
 async function createDriveFolder(trip) {
   logAction('createDriveFolder', 'pending', `Iniciando para viaje: ${trip.name}`);
@@ -1756,18 +1728,16 @@ async function createDriveFolder(trip) {
   }
 
   try {
-    // Buscar si ya existe la carpeta TripTrak
     const searchRes = await fetch(
       `https://www.googleapis.com/drive/v3/files?q=name='TripTrak' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       { headers: { Authorization: `Bearer ${googleToken}` } }
     );
     const searchData = await searchRes.json();
-    
+
     let rootFolderId;
     if (searchData.files && searchData.files.length > 0) {
       rootFolderId = searchData.files[0].id;
     } else {
-      // Crear carpeta raíz TripTrak
       const rootRes = await fetch('https://www.googleapis.com/drive/v3/files', {
         method: 'POST',
         headers: {
@@ -1783,7 +1753,6 @@ async function createDriveFolder(trip) {
       rootFolderId = rootData.id;
     }
 
-    // Crear carpeta del viaje dentro de TripTrak
     const tripRes = await fetch('https://www.googleapis.com/drive/v3/files', {
       method: 'POST',
       headers: {
@@ -1804,7 +1773,6 @@ async function createDriveFolder(trip) {
       return;
     }
 
-    // Guardar el ID de la carpeta en el viaje
     trip.driveFolderId = tripData.id;
     trip.driveUrl = `https://drive.google.com/drive/folders/${tripData.id}`;
 
@@ -1842,7 +1810,7 @@ async function uploadPhotoToDrive(expense, dataUrl) {
 
     const form = new FormData();
     form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    
+
     const byteChars = atob(base64);
     const byteArr = new Uint8Array(byteChars.length);
     for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
@@ -1865,6 +1833,7 @@ async function uploadPhotoToDrive(expense, dataUrl) {
     console.error('Error subiendo foto a Drive:', err);
   }
 }
+
 function renderChangeTripModal() {
   const today = new Date().toISOString().split('T')[0];
   const active = state.trips.filter(t => t.end >= today);
@@ -1898,12 +1867,12 @@ function selectTrip(id) {
   closeModal('modal-change-trip');
   openTripDetail(id);
 }
+
 // ─── GOOGLE SHEETS ───────────────────────────────────────────────────────────
 async function createTripSheet(trip) {
   await getValidToken();
   if (!googleToken) return;
   try {
-    // Crear el Google Sheet
     const createRes = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
       method: 'POST',
       headers: {
@@ -1922,7 +1891,6 @@ async function createTripSheet(trip) {
     const sheetData = await createRes.json();
     const sheetId = sheetData.spreadsheetId;
 
-    // Agregar headers Sheet 1
     await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A1:I1?valueInputOption=RAW`, {
       method: 'PUT',
       headers: {
@@ -1933,7 +1901,7 @@ async function createTripSheet(trip) {
         values: [['Fecha', 'Tipo de gasto', 'Descripción', 'Moneda original', 'Monto original', 'Monto USD', 'Notas', 'Recibo', 'ID (no editar)']],
       }),
     });
-// Formato visual de los headers
+
     await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`, {
       method: 'POST',
       headers: {
@@ -1976,7 +1944,7 @@ async function createTripSheet(trip) {
         ],
       }),
     });
-    // Mover el Sheet a la carpeta del viaje
+
     await fetch(`https://www.googleapis.com/drive/v3/files/${sheetId}?addParents=${trip.driveFolderId}&removeParents=root`, {
       method: 'PATCH',
       headers: {
@@ -1985,7 +1953,6 @@ async function createTripSheet(trip) {
       },
     });
 
-    // Guardar el ID del sheet en el viaje
     trip.sheetId = sheetId;
     trip.sheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}`;
     const idx = state.trips.findIndex(t => t.id === trip.id);
@@ -2008,8 +1975,8 @@ async function appendExpenseToSheet(expense, sheetId) {
   }
 
   try {
-    const receiptUrl = expense.driveFileId 
-      ? `https://drive.google.com/file/d/${expense.driveFileId}/view` 
+    const receiptUrl = expense.driveFileId
+      ? `https://drive.google.com/file/d/${expense.driveFileId}/view`
       : '';
 
     const row = [
@@ -2045,262 +2012,14 @@ async function appendExpenseToSheet(expense, sheetId) {
     logAction('appendExpenseToSheet', 'failed', `Excepción: ${err.message}`);
   }
 }
-// ─── MANAGE TRIPS ─────────────────────────────────────────────────────────────
-function renderManageTrips() {
-  const list = document.getElementById('manage-trips-list');
-  if (state.trips.length === 0) {
-    list.innerHTML = '<div class="empty-state">🗺️<p>No hay viajes todavía.</p></div>';
-    return;
-  }
 
-  list.innerHTML = state.trips.slice().reverse().map(trip => {
-    const expenses = getTripExpenses(trip.id);
-    const total = expenses.reduce((s, e) => s + (parseFloat(e.amountUSD) || 0), 0);
-    const isActive = state.activeTrip && state.activeTrip.id === trip.id;
-    return `
-      <div class="history-item" style="${isActive ? 'border-color:var(--accent);' : ''}">
-        <p class="history-name">${trip.name} ${isActive ? '● Activo' : ''}</p>
-        <p class="history-dates">${formatDate(trip.start)} → ${formatDate(trip.end)}</p>
-        <p class="history-total">$${total.toFixed(2)} USD · ${expenses.length} gastos</p>
-        <div style="display:flex;gap:8px;margin-top:12px;">
-          <button class="btn-sm" onclick="editTrip(${trip.id})">✏️ Editar</button>
-          <button class="btn-sm" onclick="viewTripExpenses(${trip.id})">📋 Gastos</button>
-          <button class="btn-sm danger" onclick="deleteTrip(${trip.id})" style="color:var(--red);border-color:var(--red);">🗑️ Eliminar</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-async function deleteTrip(id) {
-  const trip = state.trips.find(t => t.id === id);
-  if (!trip) return;
-
-  const confirm1 = confirm(`¿Eliminar el viaje "${trip.name}"? Se eliminarán todos los gastos y la carpeta en Drive.`);
-  if (!confirm1) return;
-
-  // Eliminar carpeta en Drive
-  await getValidToken();
-  if (trip.driveFolderId) {
-    try {
-      await fetch(`https://www.googleapis.com/drive/v3/files/${trip.driveFolderId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${googleToken}` },
-      });
-    } catch (err) {
-      console.error('Error eliminando carpeta en Drive:', err);
-    }
-  }
-// Eliminar evento de Google Calendar
-  if (trip.calendarEventId) {
-    try {
-      await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${trip.calendarEventId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${googleToken}` },
-      });
-    } catch (err) {
-      console.error('Error eliminando evento de Calendar:', err);
-    }
-  }
-  // Eliminar gastos del viaje
-  state.expenses = state.expenses.filter(e => e.tripId !== id);
-
-  // Eliminar viaje
-  state.trips = state.trips.filter(t => t.id !== id);
-
-  // Si era el viaje activo, limpiar
-  if (state.activeTrip && state.activeTrip.id === id) {
-    state.activeTrip = state.trips.length > 0 ? state.trips[state.trips.length - 1] : null;
-  }
-
-  save();
-  renderManageTrips();
-  renderHome();
-  showToast(`Viaje "${trip.name}" eliminado`, '🗑️');
-}
-
-async function editTrip(id) {
-  const trip = state.trips.find(t => t.id === id);
-  if (!trip) return;
-
-  const newName = prompt('Nombre del viaje:', trip.name);
-  if (!newName) return;
-
-  const newStart = prompt('Fecha inicio (YYYY-MM-DD):', trip.start);
-  if (!newStart) return;
-
-  const newEnd = prompt('Fecha fin (YYYY-MM-DD):', trip.end);
-  if (!newEnd) return;
-
-  // Validar que los gastos existentes estén dentro del nuevo rango
-  const expenses = getTripExpenses(id);
-  const outOfRange = expenses.filter(e => e.date < newStart || e.date > newEnd);
-  if (outOfRange.length > 0) {
-    alert(`No podés cambiar las fechas porque ${outOfRange.length} gasto(s) quedarían fuera del rango.`);
-    return;
-  }
-
-  const idx = state.trips.findIndex(t => t.id === id);
-  state.trips[idx] = { ...trip, name: newName, start: newStart, end: newEnd };
-  if (state.activeTrip && state.activeTrip.id === id) {
-    state.activeTrip = state.trips[idx];
-  }
-  save();
-
-  showLoading('Actualizando Drive y Sheet...');
-  await getValidToken();
-
-  if (googleToken) {
-    // Renombrar carpeta en Drive
-    if (trip.driveFolderId) {
-      try {
-        await fetch(`https://www.googleapis.com/drive/v3/files/${trip.driveFolderId}`, {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${googleToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ name: `${newStart}_${newName}` }),
-        });
-      } catch (err) {
-        console.error('Error renombrando carpeta en Drive:', err);
-      }
-    }
-
-   // Renombrar Sheet (cambia el nombre del archivo en Drive, que es lo que se ve)
-    if (trip.sheetId) {
-      try {
-        await fetch(`https://www.googleapis.com/drive/v3/files/${trip.sheetId}`, {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${googleToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ name: `${newStart}_${newName}` }),
-        });
-      } catch (err) {
-        console.error('Error renombrando sheet:', err);
-      }
-    }
-  }
-
-  hideLoading();
-  renderManageTrips();
-  renderHome();
-}
-
-function viewTripExpenses(id) {
-  const trip = state.trips.find(t => t.id === id);
-  if (!trip) return;
-  window._viewingTripId = id;
-  renderTripExpensesScreen(trip);
-  showScreen('trip-expenses');
-}
-
-function renderTripExpensesScreen(trip) {
-  document.getElementById('trip-expenses-title').textContent = `Gastos — ${trip.name}`;
-  const expenses = getTripExpenses(trip.id);
-  const list = document.getElementById('trip-expenses-list');
-
-  if (expenses.length === 0) {
-    list.innerHTML = '<div class="empty-state">📭<p>No hay gastos en este viaje.</p></div>';
-    return;
-  }
-
-  list.innerHTML = expenses.slice().reverse().map(e => `
-    <div class="history-item">
-      <p class="history-name">${e.category}</p>
-      <p class="history-dates">${e.datetime} — ${e.description || ''}</p>
-      <p class="history-total">$${parseFloat(e.amountUSD).toFixed(2)} USD ${e.currency !== 'USD' ? `(${e.amountOrig} ${e.currency})` : ''}</p>
-      <div style="display:flex;gap:8px;margin-top:12px;">
-        <button class="btn-sm" onclick="editExpense(${e.id})">✏️ Editar</button>
-        <button class="btn-sm" onclick="deleteExpense(${e.id})" style="color:var(--red);border-color:var(--red);">🗑️ Eliminar</button>
-      </div>
-    </div>
-  `).join('');
-}
-
-async function editExpense(id) {
-  const expense = state.expenses.find(e => e.id === id);
-  if (!expense) return;
-
-  const newAmount = prompt('Monto:', expense.amountOrig);
-  if (newAmount === null) return;
-
-  const newDescription = prompt('Descripción:', expense.description || '');
-  if (newDescription === null) return;
-
-  const idx = state.expenses.findIndex(e => e.id === id);
-  state.expenses[idx].amountOrig = newAmount;
-  state.expenses[idx].amountUSD = expense.currency === 'USD' ? newAmount : expense.amountUSD;
-  state.expenses[idx].description = newDescription;
-  save();
-
-  const trip = state.trips.find(t => t.id === window._viewingTripId);
-
-  if (trip.sheetId) {
-    await updateExpenseInSheet(state.expenses[idx], trip.sheetId);
-  }
-
-  renderTripExpensesScreen(trip);
-  renderHome();
-  alert('Gasto actualizado y sincronizado con el Sheet.');
-}
-
-async function deleteExpense(id) {
-  const expense = state.expenses.find(e => e.id === id);
-  if (!expense) return;
-
-  const confirmDelete = confirm(`¿Eliminar este gasto de ${expense.category} por $${expense.amountUSD}?`);
-  if (!confirmDelete) return;
-
-  if (expense.driveFileId) {
-    if (!googleToken && window._driveToken) googleToken = window._driveToken;
-    if (!googleToken) {
-      await new Promise((resolve) => {
-        const client = google.accounts.oauth2.initTokenClient({
-          client_id: GOOGLE_CLIENT_ID,
-          scope: GOOGLE_SCOPES,
-          callback: (response) => {
-            if (!response.error) googleToken = response.access_token;
-            resolve();
-          },
-        });
-        client.requestAccessToken();
-      });
-    }
-    try {
-      await fetch(`https://www.googleapis.com/drive/v3/files/${expense.driveFileId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${googleToken}` },
-      });
-    } catch (err) {
-      console.error('Error eliminando foto de Drive:', err);
-    }
-  }
-
-  const trip = state.trips.find(t => t.id === window._viewingTripId);
-
-  if (trip.sheetId) {
-    await deleteExpenseFromSheet(expense.id, trip.sheetId);
-  }
-
-  state.expenses = state.expenses.filter(e => e.id !== id);
-  save();
-
-   renderTripExpensesScreen(trip);
-   renderHome();
-   showToast('Gasto eliminado correctamente', '🗑️');
-}
 async function findRowByExpenseId(sheetId, expenseId) {
   if (!googleToken) return null;
-  console.log('Buscando fila para expenseId:', expenseId, 'tipo:', typeof expenseId);
   try {
-      const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!I:I`, {
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!I:I`, {
       headers: { Authorization: `Bearer ${googleToken}` },
     });
     const data = await res.json();
-    console.log('Valores columna I:', data.values);
     if (!data.values) return null;
     const rowIndex = data.values.findIndex(row => row[0] === String(expenseId));
     return rowIndex === -1 ? null : rowIndex + 1; // +1 porque Sheets es 1-indexed
@@ -2309,6 +2028,7 @@ async function findRowByExpenseId(sheetId, expenseId) {
     return null;
   }
 }
+
 async function updateExpenseInSheet(expense, sheetId) {
   await getValidToken();
   if (!googleToken) return;
@@ -2319,8 +2039,8 @@ async function updateExpenseInSheet(expense, sheetId) {
     return;
   }
 
-  const receiptUrl = expense.driveFileId 
-    ? `https://drive.google.com/file/d/${expense.driveFileId}/view` 
+  const receiptUrl = expense.driveFileId
+    ? `https://drive.google.com/file/d/${expense.driveFileId}/view`
     : '';
 
   const row = [
@@ -2383,6 +2103,76 @@ async function deleteExpenseFromSheet(expenseId, sheetId) {
     console.error('Error eliminando fila en Sheet:', err);
   }
 }
+
+// ─── MANAGE TRIPS ─────────────────────────────────────────────────────────────
+function renderManageTrips() {
+  const list = document.getElementById('manage-trips-list');
+  if (state.trips.length === 0) {
+    list.innerHTML = '<div class="empty-state">🗺️<p>No hay viajes todavía.</p></div>';
+    return;
+  }
+
+  list.innerHTML = state.trips.slice().reverse().map(trip => {
+    const expenses = getTripExpenses(trip.id);
+    const total = expenses.reduce((s, e) => s + (parseFloat(e.amountUSD) || 0), 0);
+    const isActive = state.activeTrip && state.activeTrip.id === trip.id;
+    return `
+      <div class="history-item" style="${isActive ? 'border-color:var(--accent);' : ''}">
+        <p class="history-name">${trip.name} ${isActive ? '● Activo' : ''}</p>
+        <p class="history-dates">${formatDate(trip.start)} → ${formatDate(trip.end)}</p>
+        <p class="history-total">$${total.toFixed(2)} USD · ${expenses.length} gastos</p>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button class="btn-sm" onclick="openTripDetail(${trip.id})">✏️ Editar / Ver</button>
+          <button class="btn-sm danger" onclick="deleteTrip(${trip.id})" style="color:var(--red);border-color:var(--red);">🗑️ Eliminar</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function deleteTrip(id) {
+  const trip = state.trips.find(t => t.id === id);
+  if (!trip) return;
+
+  const confirm1 = confirm(`¿Eliminar el viaje "${trip.name}"? Se eliminarán todos los gastos y la carpeta en Drive.`);
+  if (!confirm1) return;
+
+  await getValidToken();
+  if (trip.driveFolderId) {
+    try {
+      await fetch(`https://www.googleapis.com/drive/v3/files/${trip.driveFolderId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${googleToken}` },
+      });
+    } catch (err) {
+      console.error('Error eliminando carpeta en Drive:', err);
+    }
+  }
+
+  if (trip.calendarEventId) {
+    try {
+      await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${trip.calendarEventId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${googleToken}` },
+      });
+    } catch (err) {
+      console.error('Error eliminando evento de Calendar:', err);
+    }
+  }
+
+  state.expenses = state.expenses.filter(e => e.tripId !== id);
+  state.trips = state.trips.filter(t => t.id !== id);
+
+  if (state.activeTrip && state.activeTrip.id === id) {
+    state.activeTrip = state.trips.length > 0 ? state.trips[state.trips.length - 1] : null;
+  }
+
+  save();
+  renderManageTrips();
+  renderHome();
+  showToast(`Viaje "${trip.name}" eliminado`, '🗑️');
+}
+
 function openPhotoFullscreen() {
   document.getElementById('photo-fullscreen').style.display = 'flex';
 }
@@ -2398,6 +2188,7 @@ function removeManualPhoto() {
   document.getElementById('photo-fullscreen-img').src = '';
   document.getElementById('manual-upload-zone').style.display = 'block';
 }
+
 async function removeFromGoogleCalendar(trip) {
   await getValidToken();
 
@@ -2419,13 +2210,13 @@ async function removeFromGoogleCalendar(trip) {
     alert('No se pudo quitar el evento. Intentá de nuevo.');
   }
 }
+
 // ─── DRIVE JSON SOURCE OF TRUTH ────────────────────────────────────────────────
 async function findOrCreateDataFile() {
   await getValidToken();
   if (!googleToken) return null;
 
   try {
-    // Buscar carpeta raíz TripTrak
     const searchFolder = await fetch(
       `https://www.googleapis.com/drive/v3/files?q=name='TripTrak' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       { headers: { Authorization: `Bearer ${googleToken}` } }
@@ -2451,7 +2242,6 @@ async function findOrCreateDataFile() {
       rootFolderId = newFolder.id;
     }
 
-    // Buscar el archivo de datos dentro de esa carpeta
     const searchFile = await fetch(
       `https://www.googleapis.com/drive/v3/files?q=name='triptrak-data.json' and '${rootFolderId}' in parents and trashed=false`,
       { headers: { Authorization: `Bearer ${googleToken}` } }
@@ -2462,8 +2252,7 @@ async function findOrCreateDataFile() {
       return { fileId: fileData.files[0].id, rootFolderId };
     }
 
-    // No existe, crearlo vacío
-    const emptyData = { trips: [], expenses: [], categories: state.categories };
+    const emptyData = { trips: [], expenses: [], categories: state.categories, lastModified: Date.now() };
     const metadata = {
       name: 'triptrak-data.json',
       parents: [rootFolderId],
@@ -2488,6 +2277,7 @@ async function findOrCreateDataFile() {
     return null;
   }
 }
+
 async function loadDataFromDrive() {
   const fileInfo = await findOrCreateDataFile();
   if (!fileInfo) return null;
@@ -2505,7 +2295,6 @@ async function loadDataFromDrive() {
     return null;
   }
 }
-
 
 async function saveDataToDrive() {
   logAction('saveDataToDrive', 'pending', `Trips: ${state.trips.length}, Expenses: ${state.expenses.length}`);
@@ -2579,12 +2368,13 @@ async function saveDataToDrive() {
     }
 
     _lastKnownDriveModified = now;
-    logAction('saveDataToDrive', 'success', `Guardado: ${state.trips.length} viajes`);
+    logAction('saveDataToDrive', 'success', `Guardado: ${state.trips.length} viajes, ${state.expenses.length} gastos`);
   } catch (err) {
     console.error('Error guardando JSON en Drive:', err);
     logAction('saveDataToDrive', 'failed', `Excepción: ${err.message}`);
   }
 }
+
 async function runDiagnostic() {
   showLoading('Comparando memoria vs Drive...');
 
@@ -2646,6 +2436,7 @@ async function runDiagnostic() {
   console.log(report);
   alert(report);
 }
+
 // ─── AUTO SYNC ON VISIBILITY CHANGE ────────────────────────────────────────────
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && state.user) {
@@ -2667,24 +2458,7 @@ document.addEventListener('visibilitychange', async () => {
     }
   }
 });
-function goToHomeAndReleaseTrip() {
-  state.activeTrip = null;
-  save();
 
-  const today = new Date().toISOString().split('T')[0];
-  const todayTrip = state.trips.find(t => t.start <= today && t.end >= today);
-
-  if (todayTrip) {
-    const confirmActivate = confirm(`Hay un viaje en curso hoy: "${todayTrip.name}" (${formatDate(todayTrip.start)} → ${formatDate(todayTrip.end)}).\n\nAceptar = seleccionar este viaje\nCancelar = quedarme sin viaje seleccionado`);
-    if (confirmActivate) {
-      state.activeTrip = todayTrip;
-      save();
-    }
-  }
-
-  renderHome();
-  showScreen('home');
-}
 // ─── TRIP DETAIL (unified screen) ──────────────────────────────────────────────
 function openTripDetail(tripId) {
   const trip = state.trips.find(t => t.id === tripId);
@@ -2773,6 +2547,7 @@ function renderTripDetailExpensesList(trip) {
     </div>
   `).join('');
 }
+
 function openExpenseDetail(expenseId) {
   const expense = state.expenses.find(e => e.id === expenseId);
   if (!expense) return;
@@ -2833,4 +2608,5 @@ function selectExpenseDetailChip(el) {
   el.classList.add('active');
   window._detailSelectedCategory = el.dataset.cat;
 }
+
 init();
