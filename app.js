@@ -782,15 +782,6 @@ document.getElementById('btn-enable-edit').addEventListener('click', () => {
     renderHome();
   });
 
-  document.getElementById('btn-detail-delete-trip').addEventListener('click', async () => {
-    await deleteTrip(window._detailTripId);
-    showScreen('home');
-  });
-
-  document.getElementById('btn-detail-drive').addEventListener('click', () => {
-    const trip = state.trips.find(t => t.id === window._detailTripId);
-    if (trip && trip.driveUrl) window.open(trip.driveUrl, '_blank');
-  });
 
   document.getElementById('btn-detail-calendar').addEventListener('click', async () => {
     const trip = state.trips.find(t => t.id === window._detailTripId);
