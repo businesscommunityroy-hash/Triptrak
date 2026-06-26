@@ -9,7 +9,10 @@ const GOOGLE_SCOPES = [
 ].join(' ');
 let googleToken = null;
 let googleUser = null;
-let tokenExpiresAt = 0;
+let tokenExpiresAt = parseInt(localStorage.getItem('triptrak_token_expires') || '0');
+if (Date.now() < tokenExpiresAt) {
+  googleToken = localStorage.getItem('triptrak_token') || null;
+}
 
 async function getValidToken() {
   const now = Date.now();
@@ -38,6 +41,8 @@ async function getValidToken() {
     googleToken = silentToken;
     tokenExpiresAt = Date.now() + 55 * 60 * 1000;
     window._driveToken = googleToken;
+    localStorage.setItem('triptrak_token', googleToken);
+    localStorage.setItem('triptrak_token_expires', tokenExpiresAt.toString());
     return googleToken;
   }
 
@@ -55,13 +60,13 @@ async function getValidToken() {
     });
     client.requestAccessToken();
   });
-
-  if (visibleToken) {
+if (visibleToken) {
     googleToken = visibleToken;
     tokenExpiresAt = Date.now() + 55 * 60 * 1000;
     window._driveToken = googleToken;
+    localStorage.setItem('triptrak_token', googleToken);
+    localStorage.setItem('triptrak_token_expires', tokenExpiresAt.toString());
   }
-
   return googleToken;
 }
 const state = {
@@ -87,6 +92,40 @@ const state = {
   pendingImage: null,
   selectedCategory: null,
 };
+async function getValidTokenSilentOnly() {
+  const now = Date.now();
+
+  if (googleToken && now < tokenExpiresAt) {
+    return googleToken;
+  }
+
+  const silentToken = await new Promise((resolve) => {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: GOOGLE_SCOPES,
+      prompt: '',
+      callback: (response) => {
+        if (response.error) {
+          resolve(null);
+        } else {
+          resolve(response.access_token);
+        }
+      },
+    });
+    client.requestAccessToken();
+  });
+
+if (silentToken) {
+    googleToken = silentToken;
+    tokenExpiresAt = Date.now() + 55 * 60 * 1000;
+    window._driveToken = googleToken;
+    localStorage.setItem('triptrak_token', googleToken);
+    localStorage.setItem('triptrak_token_expires', tokenExpiresAt.toString());
+    return googleToken;
+  }
+
+  return null;
+}
 // ─── ACTION LOG (debugging) ────────────────────────────────────────────────────
 let actionLog = [];
 
@@ -197,6 +236,12 @@ function init() {
 }
 
 async function syncOnLoad() {
+  const token = await getValidTokenSilentOnly();
+  if (!token) {
+    console.log('Sync al cargar: no se pudo obtener token silenciosamente, se omite esta vez.');
+    return;
+  }
+
   const driveData = await loadDataFromDrive();
   if (driveData) {
     state.trips = driveData.trips || [];
@@ -242,6 +287,8 @@ function bindEvents() {
         googleToken = response.access_token;
         tokenExpiresAt = Date.now() + 55 * 60 * 1000;
         window._driveToken = googleToken;
+        localStorage.setItem('triptrak_token', googleToken);
+        localStorage.setItem('triptrak_token_expires', tokenExpiresAt.toString());
         const userInfo = await fetchGoogleUserInfo(googleToken);
         googleUser = userInfo;
 
