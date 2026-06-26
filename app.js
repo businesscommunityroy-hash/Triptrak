@@ -684,7 +684,7 @@ function bindEvents() {
   });
   document.getElementById('btn-save-manual').addEventListener('click', saveManualExpense);
   document.getElementById('btn-trip-expenses-back').addEventListener('click', () => showScreen('manage-trips'));
-  document.getElementById('btn-trip-detail-back').addEventListener('click', () => showScreen('manage-trips'));
+  document.getElementById('btn-trip-detail-back').addEventListener('click', goToHomeAndReleaseTrip);
 
   // TRIP DETAIL — edit toggle
   document.getElementById('btn-enable-edit').addEventListener('click', () => {
