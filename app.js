@@ -264,6 +264,7 @@ async function syncOnLoad() {
     updateAvatars();
     renderHome();
     showScreen('home');
+    showToast('No se pudo cargar la última versión de Drive. Tocá "Sincronizar" para actualizar.', '⚠️');
     return;
   }
 
