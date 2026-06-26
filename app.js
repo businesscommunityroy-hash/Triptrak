@@ -1012,14 +1012,18 @@ function renderHome() {
   const trip = state.activeTrip;
   const nameEl = document.getElementById('home-trip-name');
   const datesEl = document.getElementById('home-trip-dates');
+  const suggestionsEl = document.getElementById('home-no-trip-suggestions');
 
   if (!trip) {
     if (state.trips.length > 0) {
-      nameEl.textContent = 'No hay viaje en curso el dia de hoy';
+      nameEl.textContent = 'No hay viaje seleccionado';
       datesEl.innerHTML = `Tienes ${state.trips.length} viaje(s) creados.<br>Tocá "Seleccionar viaje" para elegir uno.`;
+      renderHomeNoTripSuggestions();
+      suggestionsEl.style.display = 'block';
     } else {
       nameEl.textContent = 'No hay viajes disponibles';
       datesEl.textContent = 'Creá un nuevo viaje para empezar';
+      suggestionsEl.style.display = 'none';
     }
   } else {
     const { total, elapsed } = tripDayInfo(trip);
@@ -1027,25 +1031,25 @@ function renderHome() {
     const isUpcoming = trip.start > new Date().toISOString().split('T')[0];
     const statusText = isUpcoming ? 'Próximo' : `En curso · Día ${elapsed} de ${total}`;
     datesEl.innerHTML = `Fechas: ${formatDate(trip.start)} → ${formatDate(trip.end)}<br>Estado: ${statusText}`;
+    suggestionsEl.style.display = 'none';
   }
 
   renderStatsGrid();
   renderExpensesList();
   checkReminder();
 
-  // Botón de cambiar/seleccionar viaje — texto dinámico
   const changeBtn = document.getElementById('btn-change-trip');
   if (changeBtn) {
     changeBtn.textContent = trip ? '🔄 Cambiar viaje' : '✈️ Seleccionar viaje';
   }
 
-  // Botones que solo tienen sentido con un viaje activo
   const tripOnlyButtons = ['btn-analyze', 'btn-view-drive', 'btn-edit-trip-quick', 'btn-add-calendar'];
   tripOnlyButtons.forEach(id => {
     const btn = document.getElementById(id);
     if (btn) btn.style.display = trip ? 'inline-flex' : 'none';
   });
-const calBtn = document.getElementById('btn-add-calendar');
+
+  const calBtn = document.getElementById('btn-add-calendar');
   if (calBtn) {
     if (trip && trip.calendarEventId) {
       calBtn.textContent = '🗑️ Quitar de Calendar';
@@ -1053,6 +1057,32 @@ const calBtn = document.getElementById('btn-add-calendar');
       calBtn.textContent = '📅 Agregar a Calendar';
     }
   }
+}
+
+function renderHomeNoTripSuggestions() {
+  const today = new Date().toISOString().split('T')[0];
+  const container = document.getElementById('home-no-trip-suggestions');
+
+  const upcoming = state.trips.filter(t => t.start > today).sort((a, b) => a.start.localeCompare(b.start)).slice(0, 3);
+  const past = state.trips.filter(t => t.end < today).sort((a, b) => b.end.localeCompare(a.end)).slice(0, 3);
+
+  const listToShow = upcoming.length > 0 ? upcoming : past;
+  const label = upcoming.length > 0 ? 'Próximos viajes' : 'Viajes recientes';
+
+  if (listToShow.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = `
+    <p class="section-title" style="padding:0 0 10px;">${label}</p>
+    ${listToShow.map(t => `
+      <div class="history-item" onclick="openTripDetail(${t.id})" style="cursor:pointer;">
+        <p class="history-name">${t.name}</p>
+        <p class="history-dates">${formatDate(t.start)} → ${formatDate(t.end)}</p>
+      </div>
+    `).join('')}
+  `;
 }
  
 function renderStatsGrid() {
@@ -2603,7 +2633,7 @@ function goToHomeAndReleaseTrip() {
   const todayTrip = state.trips.find(t => t.start <= today && t.end >= today);
 
   if (todayTrip) {
-    const confirmActivate = confirm(`Tenés el viaje "${todayTrip.name}" en curso hoy. ¿Querés activarlo?`);
+    const confirmActivate = confirm(`Hay un viaje en curso hoy: "${todayTrip.name}" (${formatDate(todayTrip.start)} → ${formatDate(todayTrip.end)}).\n\nAceptar = seleccionar este viaje\nCancelar = quedarme sin viaje seleccionado`);
     if (confirmActivate) {
       state.activeTrip = todayTrip;
       save();
