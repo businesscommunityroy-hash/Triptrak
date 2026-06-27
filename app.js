@@ -1119,7 +1119,21 @@ function renderExpensesList() {
     return;
   }
 
-  const icons = { '🍽️ Comida': { icon: '🍽️', color: 'rgba(46,204,143,0.1)' }, '🏨 Hotel': { icon: '🏨', color: 'rgba(124,92,252,0.1)' }, '✈️ Vuelo': { icon: '✈️', color: 'rgba(79,127,255,0.1)' }, '⛽ Combustible': { icon: '⛽', color: 'rgba(79,127,255,0.1)' }, '🚕 Transporte': { icon: '🚕', color: 'rgba(245,166,35,0.1)' }, '🎭 Entretenimiento': { icon: '🎭', color: 'rgba(255,92,92,0.1)' }, '📦 Otro': { icon: '📦', color: 'rgba(139,144,167,0.1)' } };
+  const icons = {
+    '🍽️ Desayuno': { icon: '🍽️', color: 'rgba(46,204,143,0.1)' },
+    '🍽️ Comida': { icon: '🍽️', color: 'rgba(46,204,143,0.1)' },
+    '🍽️ Cena': { icon: '🍽️', color: 'rgba(46,204,143,0.1)' },
+    '🤝 Cena con cliente': { icon: '🤝', color: 'rgba(46,204,143,0.1)' },
+    '🏨 Hotel': { icon: '🏨', color: 'rgba(124,92,252,0.1)' },
+    '✈️ Vuelo': { icon: '✈️', color: 'rgba(79,127,255,0.1)' },
+    '🧳 Maletas / Equipaje': { icon: '🧳', color: 'rgba(79,127,255,0.1)' },
+    '🚕 Taxi / Uber': { icon: '🚕', color: 'rgba(245,166,35,0.1)' },
+    '🚗 Renta de auto': { icon: '🚗', color: 'rgba(245,166,35,0.1)' },
+    '⛽ Combustible': { icon: '⛽', color: 'rgba(79,127,255,0.1)' },
+    '🅿️ Estacionamiento': { icon: '🅿️', color: 'rgba(245,166,35,0.1)' },
+    '🚌 Transporte público': { icon: '🚌', color: 'rgba(245,166,35,0.1)' },
+    '📦 Otro': { icon: '📦', color: 'rgba(139,144,167,0.1)' },
+  };
 
   list.innerHTML = expenses.map(e => {
     const meta = icons[e.category] || { icon: '📦', color: 'rgba(139,144,167,0.1)' };
@@ -1484,12 +1498,14 @@ async function saveExpense() {
   }
 
   logAction('saveExpense', 'success', `Gasto ${expense.id} guardado completamente`);
+  const savedTripId = state.activeTrip.id;
+  const savedExpenseId = expense.id;
   state.pendingImage = null;
   btn.disabled = false;
   btn.textContent = 'Guardar recibo →';
-  renderHome();
-  showScreen('home');
   showToast('Gasto guardado correctamente');
+  window._detailTripId = savedTripId;
+  openExpenseDetail(savedExpenseId);
 }
 
 // ─── ANALYZE ─────────────────────────────────────────────────────────────────
@@ -1735,12 +1751,14 @@ async function saveManualExpense() {
   }
 
   logAction('saveManualExpense', 'success', `Gasto ${expense.id} guardado completamente`);
+  const savedTripId = state.activeTrip.id;
+  const savedExpenseId = expense.id;
   state.pendingImage = null;
   btn.disabled = false;
   btn.textContent = 'Guardar gasto →';
-  renderHome();
-  showScreen('home');
   showToast('Gasto guardado correctamente');
+  window._detailTripId = savedTripId;
+  openExpenseDetail(savedExpenseId);
 }
 
 // ─── GOOGLE CALENDAR ─────────────────────────────────────────────────────────

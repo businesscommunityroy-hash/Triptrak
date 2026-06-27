@@ -426,8 +426,26 @@
   <div class="content">
     <div id="expense-detail-view-mode">
       <h2 class="screen-title" id="expense-detail-category-view">Categoría</h2>
-      <p class="screen-sub" id="expense-detail-summary-view">Resumen</p>
-      <button class="btn-secondary" id="btn-enable-edit-expense">✏️ Editar gasto</button>
+
+      <div class="stats-grid" style="grid-template-columns:1fr 1fr; margin-top:12px;">
+        <div class="stat-card">
+          <div class="stat-icon">📅</div>
+          <p class="stat-val" id="expense-detail-date-view" style="font-size:16px;">—</p>
+          <p class="stat-label">Fecha</p>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">💰</div>
+          <p class="stat-val" id="expense-detail-amount-view" style="font-size:16px;">—</p>
+          <p class="stat-label">Monto</p>
+        </div>
+      </div>
+
+      <div id="expense-detail-description-wrap" style="margin-top:12px; display:none;">
+        <p class="section-title" style="padding:0 0 6px;">Descripción</p>
+        <p class="screen-sub" id="expense-detail-description-view">—</p>
+      </div>
+
+      <button class="btn-secondary" id="btn-enable-edit-expense" style="margin-top:16px;">✏️ Editar gasto</button>
 
       <div id="expense-detail-photo-view-wrap" style="display:none; margin-top:20px;">
         <p class="section-title" style="padding:0 0 10px;">Recibo</p>
