@@ -309,13 +309,21 @@ function autoDetectTrip() {
     state.activeTrip = null;
   }
 
-  if (state.trips.length === 0) return;
-  const today = new Date().toISOString().split('T')[0];
-  const active = state.trips.find(t => t.start <= today && t.end >= today);
-  if (active && (!state.activeTrip || state.activeTrip.id !== active.id)) {
-    state.activeTrip = active;
-    save();
-  }
+  // DESACTIVADO TEMPORALMENTE (24 jun) - antes esto auto-activaba el viaje
+  // "en curso hoy" como activeTrip sin que el usuario lo pidiera. Ahora
+  // checkReminder() ya muestra un mensaje con boton "Agregar gasto" para
+  // ese caso, asi que la auto-activacion silenciosa quedo redundante y
+  // generaba confusion (ej. al loguearse, te llevaba directo al viaje en
+  // vez de mostrar el Home neutral). Si en el futuro se quiere volver a
+  // este comportamiento, descomentar el bloque de abajo.
+  //
+  // if (state.trips.length === 0) return;
+  // const today = new Date().toISOString().split('T')[0];
+  // const active = state.trips.find(t => t.start <= today && t.end >= today);
+  // if (active && (!state.activeTrip || state.activeTrip.id !== active.id)) {
+  //   state.activeTrip = active;
+  //   save();
+  // }
 }
 
 // ─── NAVEGACION CENTRALIZADA ─────────────────────────────────────────────────
@@ -457,6 +465,7 @@ function bindEvents() {
     openModal('modal-new-trip');
   });
   document.getElementById('btn-new-trip-history').addEventListener('click', () => {
+    window._newTripOrigin = 'history';
     openModal('modal-new-trip');
   });
   document.getElementById('btn-cancel-trip').addEventListener('click', () => closeModal('modal-new-trip'));
@@ -943,13 +952,18 @@ function bindEvents() {
   document.getElementById('btn-logout').addEventListener('click', () => {
     const confirmLogout = confirm('¿Cerrar sesión? Vas a tener que volver a iniciar sesión con Google.');
     if (!confirmLogout) return;
-    localStorage.clear();
-    googleToken = null;
-    window._driveToken = null;
-    window._driveFileId = null;
-    tokenExpiresAt = 0;
-    location.reload();
+    doLogout();
   });
+}
+
+function doLogout(reason = 'manual') {
+  console.log(`Cerrando sesión (${reason})`);
+  localStorage.clear();
+  googleToken = null;
+  window._driveToken = null;
+  window._driveFileId = null;
+  tokenExpiresAt = 0;
+  location.reload();
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -1144,7 +1158,7 @@ function checkReminder() {
     const expenses = getTripExpenses(todayTrip.id);
     const todayExpenses = expenses.filter(e => e.date === today);
     if (todayExpenses.length === 0) {
-      reminderText.innerHTML = `Viaje "${todayTrip.name}" · ${formatDate(todayTrip.start)} → ${formatDate(todayTrip.end)} está activo. ¿Querés cargar gastos? <span id="btn-reminder-add-expense" style="color:var(--accent); text-decoration:underline; cursor:pointer; font-weight:600;">Agregar gasto</span>`;
+      reminderText.innerHTML = `Viaje "${todayTrip.name}" · ${formatDate(todayTrip.start)} → ${formatDate(todayTrip.end)} está activo el día de hoy. ¿Querés cargar gastos? <span id="btn-reminder-add-expense" style="color:var(--accent); text-decoration:underline; cursor:pointer; font-weight:600;">Agregar gasto</span>`;
       reminder.style.display = 'flex';
       document.getElementById('btn-reminder-add-expense').onclick = () => {
         state.activeTrip = todayTrip;
@@ -1220,10 +1234,17 @@ async function createTrip() {
   document.getElementById('modal-overlap-alert').style.display = 'none';
   closeModal('modal-new-trip');
 
-  renderHome();
   showLoading('Creando carpeta en Drive y hoja de gastos...');
   await createDriveFolder(trip);
   hideLoading();
+
+  if (window._newTripOrigin === 'history') {
+    renderHistory();
+    showScreen('history');
+  } else {
+    renderHome();
+  }
+  window._newTripOrigin = null;
 
   btn.disabled = false;
   btn.textContent = 'Crear viaje →';
@@ -2538,6 +2559,22 @@ document.addEventListener('visibilitychange', () => {
 document.addEventListener('click', () => {
   syncIfStale('click despues de inactividad');
 }, { capture: true });
+
+// ─── AUTO LOGOUT POR INACTIVIDAD ────────────────────────────────────────────────
+const AUTO_LOGOUT_THRESHOLD_MS = 60 * 60 * 1000; // 1 hora sin ninguna actividad
+let _lastActivityTime = Date.now();
+
+['click', 'keydown', 'touchstart', 'scroll'].forEach(evt => {
+  document.addEventListener(evt, () => { _lastActivityTime = Date.now(); }, { capture: true });
+});
+
+setInterval(() => {
+  if (!state.user) return;
+  const idleFor = Date.now() - _lastActivityTime;
+  if (idleFor >= AUTO_LOGOUT_THRESHOLD_MS) {
+    doLogout(`inactividad de ${Math.round(idleFor / 60000)} min`);
+  }
+}, 60 * 1000); // revisa cada minuto
 
 // ─── TRIP DETAIL (unified screen) ──────────────────────────────────────────────
 function openTripDetail(tripId) {
