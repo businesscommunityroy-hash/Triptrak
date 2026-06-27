@@ -450,15 +450,8 @@ function bindEvents() {
   // HOME → CAPTURE (centralizado)
   document.getElementById('btn-capture').addEventListener('click', goToCapture);
   document.getElementById('btn-capture-2').addEventListener('click', goToCapture);
-  document.getElementById('btn-capture-analyze').addEventListener('click', goToCapture);
-  document.getElementById('btn-capture-trip-expenses').addEventListener('click', goToCapture);
   document.getElementById('btn-capture-detail').addEventListener('click', goToCapture);
-
-  // HOME → ANALYZE
-  document.getElementById('btn-analyze').addEventListener('click', () => {
-    renderAnalyze();
-    showScreen('analyze');
-  });
+  document.getElementById('btn-capture-expense-detail').addEventListener('click', goToCapture);
 
   // HOME → NEW TRIP
   document.getElementById('btn-new-trip').addEventListener('click', () => {
@@ -495,21 +488,6 @@ function bindEvents() {
   });
   document.getElementById('btn-cancel-change-trip').addEventListener('click', () => closeModal('modal-change-trip'));
 
-  // HOME → DRIVE
-  document.getElementById('btn-view-drive').addEventListener('click', () => {
-    if (state.activeTrip && state.activeTrip.driveUrl) {
-      window.open(state.activeTrip.driveUrl, '_blank');
-    } else {
-      alert('Todavía no hay carpeta de Drive para este viaje. Se creará cuando guardes el primer recibo.');
-    }
-  });
-
-  // QUICK EDIT desde Home
-  document.getElementById('btn-edit-trip-quick').addEventListener('click', () => {
-    if (!state.activeTrip) return alert('No hay viaje activo.');
-    openTripDetail(state.activeTrip.id);
-  });
-
   document.getElementById('btn-sync').addEventListener('click', async () => {
     showLoading('Sincronizando con Drive...');
     const driveData = await loadDataFromDrive();
@@ -530,15 +508,6 @@ function bindEvents() {
     hideLoading();
   });
 
-  // GOOGLE CALENDAR (Home)
-  document.getElementById('btn-add-calendar').addEventListener('click', async () => {
-    if (!state.activeTrip) return alert('No hay viaje activo.');
-    if (state.activeTrip.calendarEventId) {
-      await removeFromGoogleCalendar(state.activeTrip);
-    } else {
-      addTripToGoogleCalendar(state.activeTrip);
-    }
-  });
   document.getElementById('btn-reminder-close').addEventListener('click', () => {
     document.getElementById('reminder').style.display = 'none';
   });
@@ -552,16 +521,14 @@ function bindEvents() {
   // NAV → INICIO (centralizado, siempre suelta el viaje activo)
   document.getElementById('nav-home').addEventListener('click', goToHomeAndReleaseTrip);
   document.getElementById('nav-home-2').addEventListener('click', goToHomeAndReleaseTrip);
-  document.getElementById('nav-home-analyze').addEventListener('click', goToHomeAndReleaseTrip);
-  document.getElementById('nav-home-trip-expenses').addEventListener('click', goToHomeAndReleaseTrip);
   document.getElementById('nav-home-detail').addEventListener('click', goToHomeAndReleaseTrip);
+  document.getElementById('nav-home-expense-detail').addEventListener('click', goToHomeAndReleaseTrip);
 
   // NAV → HISTORIAL (centralizado, sincroniza antes de mostrar)
   document.getElementById('nav-history').addEventListener('click', goToHistory);
   document.getElementById('nav-history-2').addEventListener('click', goToHistory);
-  document.getElementById('nav-history-analyze').addEventListener('click', goToHistory);
-  document.getElementById('nav-history-trip-expenses').addEventListener('click', goToHistory);
   document.getElementById('nav-history-detail').addEventListener('click', goToHistory);
+  document.getElementById('nav-history-expense-detail').addEventListener('click', goToHistory);
 
   // CAPTURE
   document.getElementById('upload-zone').addEventListener('click', () => {
@@ -615,9 +582,6 @@ function bindEvents() {
 
   // SAVE EXPENSE
   document.getElementById('btn-save-expense').addEventListener('click', saveExpense);
-
-  // ANALYZE — BACK
-  document.getElementById('btn-analyze-back').addEventListener('click', () => showScreen('home'));
 
   // PROFILE
   document.getElementById('btn-profile-back').addEventListener('click', goToHomeAndReleaseTrip);
@@ -711,7 +675,6 @@ function bindEvents() {
     reader.readAsDataURL(file);
   });
   document.getElementById('btn-save-manual').addEventListener('click', saveManualExpense);
-  document.getElementById('btn-trip-expenses-back').addEventListener('click', () => showScreen('manage-trips'));
   document.getElementById('btn-trip-detail-back').addEventListener('click', goToHomeAndReleaseTrip);
 
   // TRIP DETAIL — edit toggle
@@ -821,12 +784,17 @@ function bindEvents() {
     if (!expense) return;
 
     const newDate = document.getElementById('expense-detail-date').value;
+    const newEndDateRaw = document.getElementById('expense-detail-checkout-date').value;
     const newAmount = document.getElementById('expense-detail-amount').value;
     const newCurrency = document.getElementById('expense-detail-currency').value;
     const newDescription = document.getElementById('expense-detail-description').value;
     const newCategory = window._detailSelectedCategory;
+    const newEndDate = isRangeDateCategory(newCategory) ? (newEndDateRaw || null) : null;
 
     if (!newDate || !newAmount) return alert('Completá fecha y monto.');
+    if (isRangeDateCategory(newCategory) && newEndDate && newEndDate < newDate) {
+      return alert('La fecha de salida no puede ser anterior a la fecha de entrada.');
+    }
 
     const trip = state.trips.find(t => t.id === expense.tripId);
     if (trip && (newDate < trip.start || newDate > trip.end)) {
@@ -849,6 +817,7 @@ function bindEvents() {
     state.expenses[idx] = {
       ...expense,
       date: newDate,
+      endDate: newEndDate,
       datetime: formatDate(newDate),
       amountOrig: newAmount,
       currency: newCurrency,
@@ -860,6 +829,7 @@ function bindEvents() {
 
     if (trip && trip.sheetId) {
       await updateExpenseInSheet(state.expenses[idx], trip.sheetId);
+      await updateSheetTotalsRow(trip.sheetId, getTripExpenses(trip.id).length);
     }
 
     showToast('Gasto actualizado correctamente', '✅');
@@ -899,6 +869,10 @@ function bindEvents() {
 
     state.expenses = state.expenses.filter(e => e.id !== expense.id);
     save();
+
+    if (trip && trip.sheetId) {
+      await updateSheetTotalsRow(trip.sheetId, getTripExpenses(trip.id).length);
+    }
 
     showToast('Gasto eliminado correctamente', '🗑️');
     if (trip) openTripDetail(trip.id);
@@ -1004,56 +978,22 @@ function getCategoryTotals(expenses) {
   return totals;
 }
 
-// ─── RENDER HOME ─────────────────────────────────────────────────────────────
+// ─── RENDER HOME (siempre neutral, nunca muestra un viaje activo) ──────────────
 function renderHome() {
-  const trip = state.activeTrip;
   const nameEl = document.getElementById('home-trip-name');
   const datesEl = document.getElementById('home-trip-dates');
   const suggestionsEl = document.getElementById('home-no-trip-suggestions');
 
-  if (!trip) {
-    if (state.trips.length > 0) {
-      nameEl.textContent = 'No hay viaje seleccionado';
-      datesEl.innerHTML = `Tienes ${state.trips.length} viaje(s) creados.<br>Tocá "Seleccionar viaje" para elegir uno.`;
-      renderHomeNoTripSuggestions();
-      suggestionsEl.style.display = 'block';
-    } else {
-      nameEl.textContent = 'No hay viajes disponibles';
-      datesEl.textContent = 'Creá un nuevo viaje para empezar';
-      suggestionsEl.style.display = 'none';
-    }
+  if (state.trips.length > 0) {
+    nameEl.textContent = 'No hay viaje seleccionado';
+    datesEl.innerHTML = `Tienes ${state.trips.length} viaje(s) creados.<br>Tocá "Seleccionar viaje" para elegir uno.`;
   } else {
-    const { total, elapsed } = tripDayInfo(trip);
-    nameEl.textContent = 'Viaje: ' + trip.name;
-    const isUpcoming = trip.start > new Date().toISOString().split('T')[0];
-    const statusText = isUpcoming ? 'Próximo' : `En curso · Día ${elapsed} de ${total}`;
-    datesEl.innerHTML = `Fechas: ${formatDate(trip.start)} → ${formatDate(trip.end)}<br>Estado: ${statusText}`;
-    suggestionsEl.style.display = 'none';
+    nameEl.textContent = 'No hay viajes disponibles';
+    datesEl.textContent = 'Creá un nuevo viaje para empezar';
   }
+  renderHomeNoTripSuggestions();
 
-  renderStatsGrid();
-  renderExpensesList();
   checkReminder();
-
-  const changeBtn = document.getElementById('btn-change-trip');
-  if (changeBtn) {
-    changeBtn.textContent = trip ? '🔄 Cambiar viaje' : '✈️ Seleccionar viaje';
-  }
-
-  const tripOnlyButtons = ['btn-analyze', 'btn-view-drive', 'btn-edit-trip-quick', 'btn-add-calendar'];
-  tripOnlyButtons.forEach(id => {
-    const btn = document.getElementById(id);
-    if (btn) btn.style.display = trip ? 'inline-flex' : 'none';
-  });
-
-  const calBtn = document.getElementById('btn-add-calendar');
-  if (calBtn) {
-    if (trip && trip.calendarEventId) {
-      calBtn.textContent = '🗑️ Quitar de Calendar';
-    } else {
-      calBtn.textContent = '📅 Agregar a Calendar';
-    }
-  }
 }
 
 function renderHomeNoTripSuggestions() {
@@ -1080,77 +1020,6 @@ function renderHomeNoTripSuggestions() {
       </div>
     `).join('')}
   `;
-}
-
-function renderStatsGrid() {
-  const grid = document.getElementById('stats-grid');
-  if (!state.activeTrip) { grid.innerHTML = ''; return; }
-
-  const expenses = getTripExpenses(state.activeTrip.id);
-  const totals = getCategoryTotals(expenses);
-  const activeCats = Object.keys(totals);
-
-  if (activeCats.length === 0) {
-    grid.innerHTML = '<p style="color:var(--text2);font-size:13px;padding:0 0 8px;">Aún no hay gastos registrados.</p>';
-    return;
-  }
-
-  grid.innerHTML = activeCats.map(cat => {
-    const match = cat.match(/^([^\sa-zA-ZÀ-ÿ]+)\s*/);
-    const icon = match ? match[1] : '📦';
-    return `
-    <div class="stat-card">
-      <div class="stat-icon">${icon}</div>
-      <p class="stat-val">$${totals[cat].toFixed(2)}</p>
-      <p class="stat-label">${cat.replace(/^[^a-zA-ZÀ-ÿ]+/, '')}</p>
-    </div>
-  `;
-  }).join('');
-}
-
-function renderExpensesList() {
-  const list = document.getElementById('expenses-list');
-  if (!state.activeTrip) { list.innerHTML = ''; return; }
-
-  const expenses = getTripExpenses(state.activeTrip.id).slice().reverse().slice(0, 10);
-
-  if (expenses.length === 0) {
-    list.innerHTML = '<div class="empty-state">📭<p>No hay recibos aún.<br>Tocá el botón de cámara para empezar.</p></div>';
-    return;
-  }
-
-  const icons = {
-    '🍽️ Desayuno': { icon: '🍽️', color: 'rgba(46,204,143,0.1)' },
-    '🍽️ Comida': { icon: '🍽️', color: 'rgba(46,204,143,0.1)' },
-    '🍽️ Cena': { icon: '🍽️', color: 'rgba(46,204,143,0.1)' },
-    '🤝 Cena con cliente': { icon: '🤝', color: 'rgba(46,204,143,0.1)' },
-    '🏨 Hotel': { icon: '🏨', color: 'rgba(124,92,252,0.1)' },
-    '✈️ Vuelo': { icon: '✈️', color: 'rgba(79,127,255,0.1)' },
-    '🧳 Maletas / Equipaje': { icon: '🧳', color: 'rgba(79,127,255,0.1)' },
-    '🚕 Taxi / Uber': { icon: '🚕', color: 'rgba(245,166,35,0.1)' },
-    '🚗 Renta de auto': { icon: '🚗', color: 'rgba(245,166,35,0.1)' },
-    '⛽ Combustible': { icon: '⛽', color: 'rgba(79,127,255,0.1)' },
-    '🅿️ Estacionamiento': { icon: '🅿️', color: 'rgba(245,166,35,0.1)' },
-    '🚌 Transporte público': { icon: '🚌', color: 'rgba(245,166,35,0.1)' },
-    '📦 Otro': { icon: '📦', color: 'rgba(139,144,167,0.1)' },
-  };
-
-  list.innerHTML = expenses.map(e => {
-    const meta = icons[e.category] || { icon: '📦', color: 'rgba(139,144,167,0.1)' };
-    return `
-      <div class="expense-item">
-        <div class="exp-icon" style="background:${meta.color};">${meta.icon}</div>
-        <div class="exp-info">
-          <p class="exp-concept">${e.description || e.category}</p>
-          <p class="exp-date">${e.datetime}</p>
-        </div>
-        <div class="exp-amount">
-          <p class="exp-usd">$${parseFloat(e.amountUSD).toFixed(2)}</p>
-          <p class="exp-orig">${e.currency !== 'USD' ? e.amountOrig + ' ' + e.currency : 'USD'}</p>
-        </div>
-      </div>
-    `;
-  }).join('');
 }
 
 function checkReminder() {
@@ -1491,6 +1360,7 @@ async function saveExpense() {
 
   if (state.activeTrip.sheetId) {
     await appendExpenseToSheet(expense, state.activeTrip.sheetId);
+    await updateSheetTotalsRow(state.activeTrip.sheetId, getTripExpenses(state.activeTrip.id).length);
   }
 
   if (state.pendingImage && state.activeTrip.driveFolderId) {
@@ -1506,66 +1376,6 @@ async function saveExpense() {
   showToast('Gasto guardado correctamente');
   window._detailTripId = savedTripId;
   openExpenseDetail(savedExpenseId);
-}
-
-// ─── ANALYZE ─────────────────────────────────────────────────────────────────
-function renderAnalyze() {
-  if (!state.activeTrip) return;
-  const trip = state.activeTrip;
-  const expenses = getTripExpenses(trip.id);
-  const { total, elapsed } = tripDayInfo(trip);
-
-  document.getElementById('analyze-trip-name').textContent = trip.name;
-
-  const totalSpent = expenses.reduce((s, e) => s + (parseFloat(e.amountUSD) || 0), 0);
-  const daysWithExpenses = new Set(expenses.map(e => e.date)).size;
-  const avgPerDay = daysWithExpenses > 0 ? totalSpent / daysWithExpenses : 0;
-  const projection = avgPerDay * total;
-
-  document.getElementById('analyze-stats').innerHTML = `
-    <div class="stat-card">
-      <div class="stat-icon">💰</div>
-      <p class="stat-val">$${totalSpent.toFixed(2)}</p>
-      <p class="stat-label">Total gastado</p>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon">📅</div>
-      <p class="stat-val">Día ${elapsed} de ${total}</p>
-      <p class="stat-label">Progreso del viaje</p>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon">📊</div>
-      <p class="stat-val">$${avgPerDay.toFixed(2)}</p>
-      <p class="stat-label">Promedio por día</p>
-    </div>
-  `;
-
-  const totals = getCategoryTotals(expenses);
-  const maxVal = Math.max(...Object.values(totals), 1);
-  document.getElementById('analyze-categories').innerHTML = Object.entries(totals).map(([cat, val]) => `
-    <div class="analyze-bar-row">
-      <div class="analyze-bar-label">
-        <span>${cat}</span>
-        <span>$${val.toFixed(2)}</span>
-      </div>
-      <div class="analyze-bar-track">
-        <div class="analyze-bar-fill" style="width:${(val / maxVal * 100).toFixed(0)}%"></div>
-      </div>
-    </div>
-  `).join('') || '<p style="color:var(--text2);font-size:13px;">Sin gastos aún.</p>';
-
-  const dayMap = {};
-  expenses.forEach(e => {
-    const d = e.date || 'Sin fecha';
-    dayMap[d] = (dayMap[d] || 0) + (parseFloat(e.amountUSD) || 0);
-  });
-
-  document.getElementById('analyze-days').innerHTML = Object.entries(dayMap).sort().map(([day, val]) => `
-    <div class="day-row">
-      <span class="day-label">${formatDate(day)}</span>
-      <span class="day-amount">$${val.toFixed(2)}</span>
-    </div>
-  `).join('') || '<p style="color:var(--text2);font-size:13px;">Sin gastos aún.</p>';
 }
 
 // ─── HISTORY ─────────────────────────────────────────────────────────────────
@@ -1744,6 +1554,7 @@ async function saveManualExpense() {
 
   if (state.activeTrip.sheetId) {
     await appendExpenseToSheet(expense, state.activeTrip.sheetId);
+    await updateSheetTotalsRow(state.activeTrip.sheetId, getTripExpenses(state.activeTrip.id).length);
   }
 
   if (state.pendingImage && state.activeTrip.driveFolderId) {
@@ -2040,6 +1851,28 @@ async function createTripSheet(trip) {
               dimensions: { sheetId: 0, dimension: 'COLUMNS', startIndex: 0, endIndex: 9 },
             },
           },
+          {
+            repeatCell: {
+              range: { sheetId: 0, startRowIndex: 1, startColumnIndex: 4, endColumnIndex: 6 },
+              cell: {
+                userEnteredFormat: {
+                  numberFormat: { type: 'CURRENCY', pattern: '#,##0.00' },
+                },
+              },
+              fields: 'userEnteredFormat.numberFormat',
+            },
+          },
+          {
+            addBanding: {
+              bandedRange: {
+                range: { sheetId: 0, startRowIndex: 1, startColumnIndex: 0, endColumnIndex: 9 },
+                rowProperties: {
+                  firstBandColor: { red: 1, green: 1, blue: 1 },
+                  secondBandColor: { red: 0.95, green: 0.96, blue: 0.99 },
+                },
+              },
+            },
+          },
         ],
       }),
     });
@@ -2061,6 +1894,85 @@ async function createTripSheet(trip) {
 
   } catch (err) {
     console.error('Error creando Sheet:', err);
+  }
+}
+
+// Recalcula y escribe la fila de totales (suma de Monto USD) justo despues
+// de la ultima fila de datos. Se llama cada vez que se agrega, edita o
+// elimina un gasto. Primero busca y borra cualquier fila vieja que diga
+// "TOTAL" en la columna C, para evitar que se acumulen filas de TOTAL
+// duplicadas o que una fila vieja contamine la suma de la fila nueva.
+async function updateSheetTotalsRow(sheetId, expenseCount) {
+  await getValidToken();
+  if (!googleToken) return;
+
+  try {
+    // 1. Leer la columna C completa para encontrar filas viejas de "TOTAL"
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!C:C`, {
+      headers: { Authorization: `Bearer ${googleToken}` },
+    });
+    const data = await res.json();
+    const values = data.values || [];
+
+    const oldTotalRowIndexes = [];
+    values.forEach((row, i) => {
+      if (row[0] === 'TOTAL') oldTotalRowIndexes.push(i); // 0-indexed, coincide con startRowIndex de la API
+    });
+
+    // 2. Borrar filas viejas de TOTAL, de abajo hacia arriba para no
+    // desfasar los indices de las que quedan por borrar.
+    if (oldTotalRowIndexes.length > 0) {
+      const deleteRequests = oldTotalRowIndexes
+        .sort((a, b) => b - a)
+        .map(rowIndex => ({
+          deleteDimension: {
+            range: { sheetId: 0, dimension: 'ROWS', startIndex: rowIndex, endIndex: rowIndex + 1 },
+          },
+        }));
+      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${googleToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requests: deleteRequests }),
+      });
+    }
+
+    // 3. Escribir la nueva fila de TOTAL justo despues del ultimo gasto real
+    const totalsRowIndex = expenseCount + 2; // +1 por header, +1 porque Sheets es 1-indexed
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A${totalsRowIndex}:I${totalsRowIndex}?valueInputOption=USER_ENTERED`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${googleToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        values: [['', '', 'TOTAL', '', `=SUM(E2:E${totalsRowIndex - 1})`, `=SUM(F2:F${totalsRowIndex - 1})`, '', '', '']],
+      }),
+    });
+
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${googleToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        requests: [{
+          repeatCell: {
+            range: { sheetId: 0, startRowIndex: totalsRowIndex - 1, endRowIndex: totalsRowIndex, startColumnIndex: 0, endColumnIndex: 9 },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor: { red: 0.85, green: 0.88, blue: 0.95 },
+                textFormat: { bold: true },
+                numberFormat: { type: 'CURRENCY', pattern: '#,##0.00' },
+              },
+            },
+            fields: 'userEnteredFormat(backgroundColor,textFormat,numberFormat)',
+          },
+        }],
+      }),
+    });
+  } catch (err) {
+    console.error('Error actualizando fila de totales en Sheet:', err);
   }
 }
 
@@ -2090,7 +2002,7 @@ async function appendExpenseToSheet(expense, sheetId) {
       expense.id,
     ];
 
-    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A:I:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A:I:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${googleToken}`,
@@ -2155,7 +2067,7 @@ async function updateExpenseInSheet(expense, sheetId) {
   ];
 
   try {
-    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A${rowNum}:I${rowNum}?valueInputOption=RAW`, {
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Detalle!A${rowNum}:I${rowNum}?valueInputOption=USER_ENTERED`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${googleToken}`,
@@ -2691,14 +2603,48 @@ function renderTripDetailExpensesList(trip) {
   `).join('');
 }
 
+// Categorias que pueden abarcar un rango de fechas (entrada/salida) en vez de
+// una sola fecha puntual. Por ahora solo Hotel; en el futuro podria incluir
+// Vuelo (ida/vuelta) u otras.
+const RANGE_DATE_CATEGORIES = ['🏨 Hotel'];
+
+function isRangeDateCategory(category) {
+  return RANGE_DATE_CATEGORIES.includes(category);
+}
+
 function openExpenseDetail(expenseId) {
   const expense = state.expenses.find(e => e.id === expenseId);
   if (!expense) return;
 
   window._detailExpenseId = expenseId;
 
+  const trip = state.trips.find(t => t.id === expense.tripId);
+  const tripLabelEl = document.getElementById('expense-detail-trip-label');
+  if (trip) {
+    tripLabelEl.textContent = `${trip.name} · ${formatDate(trip.start)} → ${formatDate(trip.end)}`;
+  } else {
+    tripLabelEl.textContent = '';
+  }
+
   document.getElementById('expense-detail-category-view').textContent = expense.category;
-  document.getElementById('expense-detail-summary-view').textContent = `${formatDate(expense.date)} · $${parseFloat(expense.amountUSD).toFixed(2)} USD${expense.description ? ' · ' + expense.description : ''}`;
+  document.getElementById('expense-detail-date-view').textContent = formatDate(expense.date);
+  document.getElementById('expense-detail-amount-view').textContent = `$${parseFloat(expense.amountUSD).toFixed(2)} USD`;
+
+  const checkoutRowView = document.getElementById('expense-detail-checkout-row-view');
+  if (expense.endDate) {
+    document.getElementById('expense-detail-checkout-view').textContent = formatDate(expense.endDate);
+    checkoutRowView.style.display = 'grid';
+  } else {
+    checkoutRowView.style.display = 'none';
+  }
+
+  const descWrap = document.getElementById('expense-detail-description-wrap');
+  if (expense.description) {
+    document.getElementById('expense-detail-description-view').textContent = expense.description;
+    descWrap.style.display = 'block';
+  } else {
+    descWrap.style.display = 'none';
+  }
 
   const photoViewWrap = document.getElementById('expense-detail-photo-view-wrap');
   const photoView = document.getElementById('expense-detail-photo-view');
@@ -2710,11 +2656,13 @@ function openExpenseDetail(expenseId) {
   }
 
   document.getElementById('expense-detail-date').value = expense.date;
+  document.getElementById('expense-detail-checkout-date').value = expense.endDate || '';
   document.getElementById('expense-detail-amount').value = expense.amountOrig;
   document.getElementById('expense-detail-currency').value = expense.currency;
   document.getElementById('expense-detail-description').value = expense.description || '';
 
   renderExpenseDetailChips(expense.category);
+  updateExpenseDetailCheckoutFieldVisibility(expense.category);
 
   const photoEditEl = document.getElementById('expense-detail-photo');
   const removeBtn = document.getElementById('btn-remove-expense-photo');
@@ -2735,6 +2683,18 @@ function openExpenseDetail(expenseId) {
   showScreen('expense-detail');
 }
 
+function updateExpenseDetailCheckoutFieldVisibility(category) {
+  const field = document.getElementById('expense-detail-checkout-field');
+  const dateLabel = document.getElementById('expense-detail-date-label');
+  if (isRangeDateCategory(category)) {
+    field.style.display = 'block';
+    dateLabel.textContent = 'Fecha de entrada';
+  } else {
+    field.style.display = 'none';
+    dateLabel.textContent = 'Fecha';
+  }
+}
+
 function renderExpenseDetailChips(currentCategory) {
   const container = document.getElementById('expense-detail-chips');
   const active = state.categories.filter(c => c.active);
@@ -2750,6 +2710,7 @@ function selectExpenseDetailChip(el) {
   document.querySelectorAll('#expense-detail-chips .chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
   window._detailSelectedCategory = el.dataset.cat;
+  updateExpenseDetailCheckoutFieldVisibility(el.dataset.cat);
 }
 
 init();
