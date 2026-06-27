@@ -451,6 +451,9 @@ function bindEvents() {
   document.getElementById('btn-new-trip').addEventListener('click', () => {
     openModal('modal-new-trip');
   });
+  document.getElementById('btn-new-trip-history').addEventListener('click', () => {
+    openModal('modal-new-trip');
+  });
   document.getElementById('btn-cancel-trip').addEventListener('click', () => closeModal('modal-new-trip'));
 
   document.getElementById('new-trip-start').addEventListener('change', (e) => {
