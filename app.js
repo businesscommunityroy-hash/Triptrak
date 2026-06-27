@@ -264,7 +264,22 @@ async function syncOnLoad() {
     updateAvatars();
     renderHome();
     showScreen('home');
-    showToast('No se pudo cargar la última versión de Drive. Tocá "Sincronizar" para actualizar.', '⚠️');
+    alert('⚠️ No se pudo cargar la última versión de Drive automáticamente.\n\nAl aceptar, vamos a intentar sincronizar de nuevo (puede pedirte iniciar sesión con Google).');
+    showLoading('Sincronizando con Drive...');
+    const driveData = await loadDataFromDrive();
+    if (driveData) {
+      state.trips = driveData.trips || [];
+      state.expenses = driveData.expenses || [];
+      state.categories = driveData.categories || state.categories;
+      if (driveData.profile) {
+        state.user = { ...state.user, ...driveData.profile, initials: getInitials(driveData.profile.name) };
+      }
+      autoDetectTrip();
+      renderHome();
+      updateAvatars();
+      showToast('Sincronizado correctamente', '🔄');
+    }
+    hideLoading();
     return;
   }
 
@@ -650,6 +665,17 @@ function bindEvents() {
       autoDetectTrip();
     }
     hideLoading();
+
+    // Verificar de nuevo despues de sincronizar: si el viaje activo se
+    // elimino desde otra sesion mientras tanto, avisar y no dejar continuar
+    // con un gasto que quedaria huerfano (sin viaje real al que pertenecer).
+    if (!state.activeTrip) {
+      alert('El viaje que tenías seleccionado ya no existe (probablemente lo eliminaste o lo eliminaron desde otro dispositivo). Seleccioná o creá un viaje para continuar.');
+      renderHome();
+      showScreen('home');
+      return;
+    }
+
     renderManualCategoryChips();
     const now = new Date();
     const localDate = new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -1351,6 +1377,15 @@ async function saveExpense() {
   btn.disabled = true;
   btn.textContent = 'Guardando...';
 
+  if (!state.activeTrip) {
+    btn.disabled = false;
+    btn.textContent = 'Guardar recibo →';
+    alert('Ya no hay un viaje activo (puede haberse eliminado desde otro dispositivo). El gasto no se guardó.');
+    renderHome();
+    showScreen('home');
+    return;
+  }
+
   if (!state.selectedCategory) {
     btn.disabled = false;
     btn.textContent = 'Guardar recibo →';
@@ -1577,6 +1612,15 @@ async function saveManualExpense() {
   if (btn.disabled) return;
   btn.disabled = true;
   btn.textContent = 'Guardando...';
+
+  if (!state.activeTrip) {
+    btn.disabled = false;
+    btn.textContent = 'Guardar gasto →';
+    alert('Ya no hay un viaje activo (puede haberse eliminado desde otro dispositivo mientras completabas el formulario). El gasto no se guardó.');
+    renderHome();
+    showScreen('home');
+    return;
+  }
 
   if (!state.selectedCategory) {
     btn.disabled = false;
