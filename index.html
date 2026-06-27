@@ -53,7 +53,7 @@
  
     <div class="reminder" id="reminder" style="display:none;">
       <span>⏰</span>
-      <p class="reminder-text">Hoy no cargaste ningún recibo. <strong>¿Tenés gastos pendientes?</strong></p>
+      <p class="reminder-text" id="reminder-text-wrap">Hoy no cargaste ningún recibo. <strong>¿Tenés gastos pendientes?</strong></p>
       <span class="reminder-close" id="btn-reminder-close">×</span>
     </div>
  
@@ -108,7 +108,7 @@
     </div>
     <div class="content">
       <h2 class="screen-title">Capturar recibo</h2>
-      <p class="screen-sub" id="capture-trip-label">Tomá una foto o subí desde tu galería.</p>
+      <p class="screen-sub" id="capture-trip-label" style="font-size:20px; font-weight:700; color:var(--text);">Tomá una foto o subí desde tu galería.</p>
       <div class="upload-zone" id="upload-zone">
         <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp" capture="environment" style="display:none">
         <div class="upload-icon">📷</div>

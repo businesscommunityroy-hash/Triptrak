@@ -11,6 +11,8 @@ let googleToken = null;
 let googleUser = null;
 let tokenExpiresAt = parseInt(localStorage.getItem('triptrak_token_expires') || '0');
 let _lastKnownDriveModified = 0;
+let _lastSyncCheckTime = Date.now();
+const STALE_SYNC_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutos
 if (Date.now() < tokenExpiresAt) {
   googleToken = localStorage.getItem('triptrak_token') || null;
 }
@@ -320,18 +322,6 @@ function autoDetectTrip() {
 function goToHomeAndReleaseTrip() {
   state.activeTrip = null;
   save();
-
-  const today = new Date().toISOString().split('T')[0];
-  const todayTrip = state.trips.find(t => t.start <= today && t.end >= today);
-
-  if (todayTrip) {
-    const confirmActivate = confirm(`Hay un viaje en curso hoy: "${todayTrip.name}" (${formatDate(todayTrip.start)} → ${formatDate(todayTrip.end)}).\n\nAceptar = seleccionar este viaje\nCancelar = quedarme sin viaje seleccionado`);
-    if (confirmActivate) {
-      state.activeTrip = todayTrip;
-      save();
-    }
-  }
-
   renderHome();
   showScreen('home');
 }
@@ -1136,14 +1126,36 @@ function renderExpensesList() {
 }
 
 function checkReminder() {
-  if (!state.activeTrip) return;
-  const today = new Date().toISOString().split('T')[0];
-  const expenses = getTripExpenses(state.activeTrip.id);
-  const todayExpenses = expenses.filter(e => e.date === today);
   const reminder = document.getElementById('reminder');
-  const today2 = new Date().toISOString().split('T')[0];
-  const tripStarted = state.activeTrip && state.activeTrip.start <= today2 && state.activeTrip.end >= today2;
-  reminder.style.display = (tripStarted && todayExpenses.length === 0) ? 'flex' : 'none';
+  const reminderText = document.getElementById('reminder-text-wrap');
+  const today = new Date().toISOString().split('T')[0];
+
+  // Buscamos el viaje "del dia": el activo si esta en curso hoy, o si no
+  // hay activo, cualquier viaje cuyas fechas incluyan hoy. Mismo mensaje
+  // siempre, sin importar como se llego al Home.
+  let todayTrip = null;
+  if (state.activeTrip && state.activeTrip.start <= today && state.activeTrip.end >= today) {
+    todayTrip = state.activeTrip;
+  } else {
+    todayTrip = state.trips.find(t => t.start <= today && t.end >= today) || null;
+  }
+
+  if (todayTrip) {
+    const expenses = getTripExpenses(todayTrip.id);
+    const todayExpenses = expenses.filter(e => e.date === today);
+    if (todayExpenses.length === 0) {
+      reminderText.innerHTML = `Viaje "${todayTrip.name}" · ${formatDate(todayTrip.start)} → ${formatDate(todayTrip.end)} está activo. ¿Querés cargar gastos? <span id="btn-reminder-add-expense" style="color:var(--accent); text-decoration:underline; cursor:pointer; font-weight:600;">Agregar gasto</span>`;
+      reminder.style.display = 'flex';
+      document.getElementById('btn-reminder-add-expense').onclick = () => {
+        state.activeTrip = todayTrip;
+        save();
+        goToCapture();
+      };
+      return;
+    }
+  }
+
+  reminder.style.display = 'none';
 }
 
 // ─── TRIP OVERLAP ─────────────────────────────────────────────────────────────
@@ -2337,6 +2349,7 @@ async function loadDataFromDrive() {
     const data = await res.json();
     window._driveFileId = fileInfo.fileId;
     _lastKnownDriveModified = data.lastModified || 0;
+    _lastSyncCheckTime = Date.now();
     return data;
   } catch (err) {
     console.error('Error leyendo JSON de Drive:', err);
@@ -2371,20 +2384,19 @@ async function saveDataToDrive() {
 
     if (driveModified > _lastKnownDriveModified) {
       logAction('saveDataToDrive', 'failed', `CONFLICTO: Drive tiene version mas reciente (${driveModified}) que la conocida (${_lastKnownDriveModified})`);
-      const proceed = confirm('⚠️ Los datos en Drive cambiaron desde otro dispositivo.\n\nSi continuás, podrías perder esos cambios.\n\nAceptar = continuar y sobrescribir (no recomendado)\nCancelar = sincronizar automáticamente con los datos correctos');
-      if (!proceed) {
-        logAction('saveDataToDrive', 'pending', 'Usuario cancelo por conflicto, sincronizando automaticamente');
-        const freshData = await loadDataFromDrive();
-        if (freshData) {
-          state.trips = freshData.trips || [];
-          state.expenses = freshData.expenses || [];
-          state.categories = freshData.categories || state.categories;
-          autoDetectTrip();
-          renderHome();
-          showToast('Sincronizado con los datos correctos', '🔄');
-        }
-        return;
+      alert('⚠️ Los datos cambiaron en otro dispositivo.\n\nVamos a sincronizar y te vamos a llevar al Inicio.');
+      logAction('saveDataToDrive', 'pending', 'Conflicto detectado, sincronizando automaticamente');
+      const freshData = await loadDataFromDrive();
+      if (freshData) {
+        state.trips = freshData.trips || [];
+        state.expenses = freshData.expenses || [];
+        state.categories = freshData.categories || state.categories;
+        autoDetectTrip();
+        showToast('Sincronizado con los datos correctos', '🔄');
       }
+      renderHome();
+      showScreen('home');
+      return;
     }
   } catch (err) {
     console.warn('No se pudo verificar version actual de Drive antes de guardar:', err);
@@ -2486,26 +2498,46 @@ async function runDiagnostic() {
 }
 
 // ─── AUTO SYNC ON VISIBILITY CHANGE ────────────────────────────────────────────
-document.addEventListener('visibilitychange', async () => {
-  if (document.visibilityState === 'visible' && state.user) {
-    const driveData = await loadDataFromDrive();
-    if (driveData) {
-      state.trips = driveData.trips || [];
-      state.expenses = driveData.expenses || [];
-      state.categories = driveData.categories || state.categories;
-      if (driveData.profile) {
-        state.user = { ...state.user, ...driveData.profile, initials: getInitials(driveData.profile.name) };
-      }
-      autoDetectTrip();
+// ─── AUTO SYNC: tiempo desde la ultima sincronizacion ──────────────────────────
+async function syncIfStale(reason) {
+  if (!state.user) return;
+  const elapsed = Date.now() - _lastSyncCheckTime;
+  if (elapsed < STALE_SYNC_THRESHOLD_MS) return;
 
-      const homeScreen = document.getElementById('screen-home');
-      if (homeScreen && homeScreen.classList.contains('active')) {
-        renderHome();
-        updateAvatars();
-      }
+  _lastSyncCheckTime = Date.now();
+  console.log(`Sincronizando por inactividad (${reason}), pasaron ${Math.round(elapsed / 60000)} min`);
+
+  const driveData = await loadDataFromDrive();
+  if (driveData) {
+    state.trips = driveData.trips || [];
+    state.expenses = driveData.expenses || [];
+    state.categories = driveData.categories || state.categories;
+    if (driveData.profile) {
+      state.user = { ...state.user, ...driveData.profile, initials: getInitials(driveData.profile.name) };
+    }
+    autoDetectTrip();
+
+    const homeScreen = document.getElementById('screen-home');
+    if (homeScreen && homeScreen.classList.contains('active')) {
+      renderHome();
+      updateAvatars();
     }
   }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    syncIfStale('volvio a la pestaña');
+  }
 });
+
+// Cualquier click en la app, si paso suficiente tiempo desde la ultima
+// sincronizacion, dispara una sincronizacion silenciosa antes de procesar
+// la accion - cubre el caso de una sesion dejada abierta en primer plano
+// toda la noche, que visibilitychange no detectaria por si sola.
+document.addEventListener('click', () => {
+  syncIfStale('click despues de inactividad');
+}, { capture: true });
 
 // ─── TRIP DETAIL (unified screen) ──────────────────────────────────────────────
 function openTripDetail(tripId) {
