@@ -1,5 +1,4 @@
 
-Index · HTML
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -68,7 +67,7 @@ Index · HTML
         <button class="btn-primary" id="btn-new-trip" style="width:auto; padding:10px 18px; margin:0; font-size:13px;">+ Nuevo viaje</button>
       </div>
       <div class="trip-actions">
-        <button class="btn-sm" id="btn-change-trip">✈️ Seleccionar viaje</button>
+        <button class="btn-sm" id="btn-change-trip">✈️ Seleccionar viaje activo</button>
         <button class="btn-sm" id="btn-sync">🔄 Sincronizar</button>
       </div>
       <div id="home-no-trip-suggestions" style="margin-top:16px;"></div>
@@ -87,7 +86,7 @@ Index · HTML
       </div>
       <div class="nav-item" id="nav-history">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-        Historial
+        Historial de viajes
       </div>
     </div>
   </div>
@@ -133,6 +132,10 @@ Index · HTML
       <div class="field">
         <label>Fecha y hora</label>
         <input type="date" id="manual-datetime">
+      </div>
+      <div class="field">
+        <label>Fecha de salida (opcional, ej. Hotel)</label>
+        <input type="date" id="manual-checkout-date">
       </div>
       <div class="field">
         <label>Monto</label>
@@ -189,6 +192,9 @@ Index · HTML
       <div class="review-fields">
         <div class="review-field">
           <div><p class="rf-label">Fecha</p><input class="rf-input" type="date" id="field-date"></div>
+        </div>
+        <div class="review-field">
+          <div><p class="rf-label">Fecha de salida (opcional, ej. Hotel)</p><input class="rf-input" type="date" id="field-checkout-date"></div>
         </div>
         <div class="review-field">
           <div><p class="rf-label">Monto original</p><input class="rf-input" type="text" id="field-amount"></div>
@@ -300,8 +306,12 @@ Index · HTML
           <div>
             <h2 class="screen-title" id="detail-trip-name-view" style="margin-bottom:4px;">Viaje</h2>
             <p class="screen-sub" id="detail-trip-dates-view">Fechas</p>
+            <p id="detail-trip-status-badge" style="font-size:12px; font-weight:600; margin-top:6px; display:none;"></p>
           </div>
-          <button class="btn-sm" id="btn-enable-edit" style="white-space:nowrap;">✏️ Editar</button>
+          <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+            <button class="btn-sm" id="btn-enable-edit" style="white-space:nowrap;">✏️ Editar</button>
+            <button class="btn-sm" id="btn-toggle-trip-status" style="white-space:nowrap;">🔒 Cerrar viaje</button>
+          </div>
         </div>
       </div>
       <div id="detail-edit-mode" style="display:none;">
@@ -350,7 +360,7 @@ Index · HTML
       </div>
       <div class="nav-item" id="nav-history-detail">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-        Historial
+        Historial de viajes
       </div>
     </div>
   </div>
@@ -404,13 +414,12 @@ Index · HTML
  
       <div id="expense-detail-edit-mode" style="display:none;">
         <div class="field">
-          <label id="expense-detail-date-label">Fecha</label>
+          <label>Fecha</label>
           <input type="date" id="expense-detail-date">
         </div>
  
-        <!-- Campo de fecha de salida, solo visible para categorias de rango (ej. Hotel) -->
-        <div class="field" id="expense-detail-checkout-field" style="display:none;">
-          <label>Fecha de salida</label>
+        <div class="field">
+          <label>Fecha de salida (opcional, ej. Hotel)</label>
           <input type="date" id="expense-detail-checkout-date">
         </div>
  
@@ -457,7 +466,7 @@ Index · HTML
       </div>
       <div class="nav-item" id="nav-history-expense-detail">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-        Historial
+        Historial de viajes
       </div>
     </div>
   </div>
@@ -472,6 +481,11 @@ Index · HTML
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
         <h2 class="screen-title" style="margin-bottom:0;">Historial de viajes</h2>
         <button class="btn-primary" id="btn-new-trip-history" style="width:auto; padding:10px 18px; margin:0; font-size:13px;">+ Nuevo viaje</button>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:16px;">
+        <button class="btn-sm history-tab active" id="tab-history-active" data-filter="active" style="flex:1;">Activos</button>
+        <button class="btn-sm history-tab" id="tab-history-closed" data-filter="closed" style="flex:1;">Cerrados</button>
+        <button class="btn-sm history-tab" id="tab-history-all" data-filter="all" style="flex:1;">Todos</button>
       </div>
       <div id="history-list"></div>
     </div>
@@ -488,7 +502,7 @@ Index · HTML
       </div>
       <div class="nav-item active" id="nav-history-2">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-        Historial
+        Historial de viajes
       </div>
     </div>
   </div>
@@ -497,11 +511,8 @@ Index · HTML
   <div class="modal-overlay" id="modal-change-trip">
     <div class="modal" style="max-height:80vh; overflow-y:auto;">
       <div class="modal-handle"></div>
-      <p class="modal-title">Seleccionar viaje</p>
-      <p style="font-size:12px;color:var(--text2);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.05em;">Activos y próximos</p>
+      <p class="modal-title">Seleccionar viaje activo</p>
       <div id="change-trip-active"></div>
-      <p style="font-size:12px;color:var(--text2);margin:16px 0 12px;text-transform:uppercase;letter-spacing:0.05em;">Anteriores</p>
-      <div id="change-trip-past"></div>
       <button class="btn-secondary" id="btn-cancel-change-trip" style="margin-top:16px;">Cancelar</button>
     </div>
   </div>

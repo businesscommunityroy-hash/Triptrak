@@ -463,6 +463,26 @@ function bindEvents() {
   });
   document.getElementById('btn-cancel-trip').addEventListener('click', () => closeModal('modal-new-trip'));
 
+  // HISTORY — filter tabs
+  function updateTabStyles() {
+    document.querySelectorAll('.history-tab').forEach(b => {
+      const isActive = b.classList.contains('active');
+      b.style.background = isActive ? 'var(--accent)' : '';
+      b.style.color = isActive ? '#fff' : '';
+      b.style.borderColor = isActive ? 'var(--accent)' : '';
+    });
+  }
+  updateTabStyles();
+  document.querySelectorAll('.history-tab').forEach(tabBtn => {
+    tabBtn.addEventListener('click', () => {
+      document.querySelectorAll('.history-tab').forEach(b => b.classList.remove('active'));
+      tabBtn.classList.add('active');
+      updateTabStyles();
+      _historyFilter = tabBtn.dataset.filter;
+      renderHistory();
+    });
+  });
+
   document.getElementById('new-trip-start').addEventListener('change', (e) => {
     const startDate = e.target.value;
     if (startDate) {
@@ -533,7 +553,7 @@ function bindEvents() {
   // CAPTURE
   document.getElementById('upload-zone').addEventListener('click', () => {
     if (!state.activeTrip) {
-      alert('Primero seleccioná o creá un viaje desde "Cambiar viaje".');
+      alert('Primero seleccioná o creá un viaje desde "Seleccionar viaje activo".');
       return;
     }
     document.getElementById('file-input').click();
@@ -543,7 +563,7 @@ function bindEvents() {
   });
   document.getElementById('btn-gallery').addEventListener('click', () => {
     if (!state.activeTrip) {
-      alert('Primero seleccioná o creá un viaje desde "Cambiar viaje".');
+      alert('Primero seleccioná o creá un viaje desde "Seleccionar viaje activo".');
       return;
     }
     document.getElementById('gallery-input').click();
@@ -553,7 +573,7 @@ function bindEvents() {
   });
   document.getElementById('btn-multi').addEventListener('click', () => {
     if (!state.activeTrip) {
-      alert('Primero seleccioná o creá un viaje desde "Cambiar viaje".');
+      alert('Primero seleccioná o creá un viaje desde "Seleccionar viaje activo".');
       return;
     }
     const input = document.createElement('input');
@@ -614,7 +634,7 @@ function bindEvents() {
   // MANUAL EXPENSE
   document.getElementById('btn-manual').addEventListener('click', async () => {
     if (!state.activeTrip) {
-      alert('Primero seleccioná o creá un viaje desde "Cambiar viaje".');
+      alert('Primero seleccioná o creá un viaje desde "Seleccionar viaje activo".');
       showScreen('home');
       return;
     }
@@ -640,9 +660,8 @@ function bindEvents() {
     }
 
     renderManualCategoryChips();
-    const now = new Date();
-    const localDate = new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-    document.getElementById('manual-datetime').value = localDate;
+    document.getElementById('manual-datetime').value = state.activeTrip.start;
+    document.getElementById('manual-checkout-date').value = '';
     document.getElementById('manual-amount').value = '';
     document.getElementById('manual-currency').value = 'USD';
     document.getElementById('manual-description').value = '';
@@ -685,6 +704,29 @@ function bindEvents() {
   document.getElementById('btn-cancel-edit-trip').addEventListener('click', () => {
     document.getElementById('detail-view-mode').style.display = 'block';
     document.getElementById('detail-edit-mode').style.display = 'none';
+  });
+
+  // TRIP DETAIL — cerrar / reabrir viaje
+  document.getElementById('btn-toggle-trip-status').addEventListener('click', () => {
+    const trip = state.trips.find(t => t.id === window._detailTripId);
+    if (!trip) return;
+
+    const isClosed = trip.status === 'closed';
+    if (isClosed) {
+      trip.status = 'open';
+      showToast('Viaje reabierto, ya podés agregar gastos', '🔓');
+    } else {
+      const confirmClose = confirm(`¿Cerrar el viaje "${trip.name}"? Ya no vas a poder agregar gastos hasta que lo reabras.`);
+      if (!confirmClose) return;
+      trip.status = 'closed';
+      showToast('Viaje cerrado correctamente', '🔒');
+    }
+
+    const idx = state.trips.findIndex(t => t.id === trip.id);
+    state.trips[idx] = trip;
+    if (state.activeTrip && state.activeTrip.id === trip.id) state.activeTrip = trip;
+    save();
+    openTripDetail(trip.id);
   });
 
   // TRIP DETAIL — save (UNICA copia)
@@ -789,10 +831,10 @@ function bindEvents() {
     const newCurrency = document.getElementById('expense-detail-currency').value;
     const newDescription = document.getElementById('expense-detail-description').value;
     const newCategory = window._detailSelectedCategory;
-    const newEndDate = isRangeDateCategory(newCategory) ? (newEndDateRaw || null) : null;
+    const newEndDate = newEndDateRaw || null;
 
     if (!newDate || !newAmount) return alert('Completá fecha y monto.');
-    if (isRangeDateCategory(newCategory) && newEndDate && newEndDate < newDate) {
+    if (newEndDate && newEndDate < newDate) {
       return alert('La fecha de salida no puede ser anterior a la fecha de entrada.');
     }
 
@@ -986,7 +1028,7 @@ function renderHome() {
 
   if (state.trips.length > 0) {
     nameEl.textContent = 'No hay viaje seleccionado';
-    datesEl.innerHTML = `Tienes ${state.trips.length} viaje(s) creados.<br>Tocá "Seleccionar viaje" para elegir uno.`;
+    datesEl.innerHTML = `Tienes ${state.trips.length} viaje(s) creados.<br>Tocá "Seleccionar viaje activo" para elegir uno.`;
   } else {
     nameEl.textContent = 'No hay viajes disponibles';
     datesEl.textContent = 'Creá un nuevo viaje para empezar';
@@ -1013,12 +1055,20 @@ function renderHomeNoTripSuggestions() {
 
   container.innerHTML = `
     <p class="section-title" style="padding:0 0 10px;">${label}</p>
-    ${listToShow.map(t => `
-      <div class="history-item" onclick="openTripDetail(${t.id})" style="cursor:pointer;">
-        <p class="history-name">${t.name}</p>
+    ${listToShow.map(t => {
+      const daysUntil = (new Date(t.start) - new Date(today)) / (1000 * 60 * 60 * 24);
+      const isSoon = daysUntil >= 0 && daysUntil <= 7;
+      const style = isSoon
+        ? 'cursor:pointer; border-color:var(--yellow); border-width:2px;'
+        : 'cursor:pointer;';
+      const star = isSoon ? '⭐ ' : '';
+      return `
+      <div class="history-item" onclick="openTripDetail(${t.id})" style="${style}">
+        <p class="history-name">${star}${t.name}</p>
         <p class="history-dates">${formatDate(t.start)} → ${formatDate(t.end)}</p>
       </div>
-    `).join('')}
+    `;
+    }).join('')}
   `;
 }
 
@@ -1172,6 +1222,7 @@ function showReviewScreen(dataUrl) {
   const photo = document.getElementById('review-photo');
   photo.innerHTML = `<img src="${dataUrl}" alt="Recibo">`;
   document.getElementById('field-date').value = '';
+  document.getElementById('field-checkout-date').value = '';
   document.getElementById('field-amount').value = 'Obteniendo Datos con AI...';
   document.getElementById('field-currency').value = 'Obteniendo Datos con AI...';
   document.getElementById('field-usd').value = 'Obteniendo Datos con AI...';
@@ -1302,6 +1353,13 @@ async function saveExpense() {
     return;
   }
 
+  if (state.activeTrip.status === 'closed') {
+    btn.disabled = false;
+    btn.textContent = 'Guardar recibo →';
+    alert(`El viaje "${state.activeTrip.name}" está cerrado. Reabrilo desde Detalle del viaje si querés agregar este gasto.`);
+    return;
+  }
+
   if (!state.selectedCategory) {
     btn.disabled = false;
     btn.textContent = 'Guardar recibo →';
@@ -1346,6 +1404,7 @@ async function saveExpense() {
     tripId: state.activeTrip.id,
     datetime,
     date: datetime,
+    endDate: document.getElementById('field-checkout-date').value || null,
     amountOrig,
     currency,
     amountUSD,
@@ -1379,19 +1438,36 @@ async function saveExpense() {
 }
 
 // ─── HISTORY ─────────────────────────────────────────────────────────────────
+let _historyFilter = 'active';
+
 function renderHistory() {
   const list = document.getElementById('history-list');
-  if (state.trips.length === 0) {
-    list.innerHTML = '<div class="empty-state">🗂️<p>No hay viajes anteriores.</p></div>';
+
+  let filtered;
+  if (_historyFilter === 'active') {
+    filtered = state.trips.filter(t => t.status !== 'closed');
+  } else if (_historyFilter === 'closed') {
+    filtered = state.trips.filter(t => t.status === 'closed');
+  } else {
+    filtered = state.trips;
+  }
+
+  if (filtered.length === 0) {
+    const emptyMsg = _historyFilter === 'active' ? 'No hay viajes activos.' :
+      _historyFilter === 'closed' ? 'No hay viajes cerrados.' : 'No hay viajes todavía.';
+    list.innerHTML = `<div class="empty-state">🗂️<p>${emptyMsg}</p></div>`;
     return;
   }
 
-  list.innerHTML = state.trips.slice().reverse().map(trip => {
+  list.innerHTML = filtered.slice().reverse().map(trip => {
     const expenses = getTripExpenses(trip.id);
     const total = expenses.reduce((s, e) => s + (parseFloat(e.amountUSD) || 0), 0);
     return `
       <div class="history-item" onclick="openTripDetail(${trip.id})" style="cursor:pointer;">
-        <p class="history-name">${trip.name}</p>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+          <p class="history-name">${trip.name}</p>
+          ${tripStatusBadgeHtml(trip)}
+        </div>
         <p class="history-dates">${formatDate(trip.start)} → ${formatDate(trip.end)}</p>
         <p class="history-total">$${total.toFixed(2)} USD</p>
       </div>
@@ -1481,6 +1557,13 @@ async function saveManualExpense() {
     return;
   }
 
+  if (state.activeTrip.status === 'closed') {
+    btn.disabled = false;
+    btn.textContent = 'Guardar gasto →';
+    alert(`El viaje "${state.activeTrip.name}" está cerrado. Reabrilo desde Detalle del viaje si querés agregar este gasto.`);
+    return;
+  }
+
   if (!state.selectedCategory) {
     btn.disabled = false;
     btn.textContent = 'Guardar gasto →';
@@ -1540,6 +1623,7 @@ async function saveManualExpense() {
     tripId: state.activeTrip.id,
     datetime,
     date,
+    endDate: document.getElementById('manual-checkout-date').value || null,
     amountOrig,
     currency,
     amountUSD,
@@ -1744,29 +1828,34 @@ async function uploadPhotoToDrive(expense, dataUrl) {
   }
 }
 
+function tripStatusBadgeHtml(trip) {
+  const isClosed = trip.status === 'closed';
+  return isClosed
+    ? '<span style="font-size:11px; font-weight:600; color:var(--text2); background:var(--surface2); padding:2px 8px; border-radius:6px;">🔒 Cerrado</span>'
+    : '<span style="font-size:11px; font-weight:600; color:var(--green); background:rgba(46,204,143,0.12); padding:2px 8px; border-radius:6px;">🟢 Activo</span>';
+}
+
 function renderChangeTripModal() {
-  const today = new Date().toISOString().split('T')[0];
-  const active = state.trips.filter(t => t.end >= today);
-  const past = state.trips.filter(t => t.end < today);
+  // "Seleccionar viaje activo" muestra solo viajes que NO estan cerrados,
+  // sin importar sus fechas - el usuario puede querer cargar gastos
+  // atrasados de un viaje que ya termino por fecha pero sigue abierto.
+  const openTrips = state.trips.filter(t => t.status !== 'closed');
 
   const renderTrip = (trip) => `
-    <div class="history-item" onclick="selectTrip(${trip.id})">
-      <p class="history-name">${trip.name}</p>
+    <div class="history-item" onclick="selectTrip(${trip.id})" style="cursor:pointer;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+        <p class="history-name">${trip.name}</p>
+        ${tripStatusBadgeHtml(trip)}
+      </div>
       <p class="history-dates">${formatDate(trip.start)} → ${formatDate(trip.end)}</p>
       ${state.activeTrip && state.activeTrip.id === trip.id ? '<p style="font-size:11px;color:var(--accent);margin-top:4px;">● Viaje actual</p>' : ''}
     </div>
   `;
 
   const activeEl = document.getElementById('change-trip-active');
-  const pastEl = document.getElementById('change-trip-past');
-
-  activeEl.innerHTML = active.length > 0
-    ? active.map(renderTrip).join('')
-    : '<p style="color:var(--text2);font-size:13px;padding:8px 0;">No hay viajes activos o próximos.</p>';
-
-  pastEl.innerHTML = past.length > 0
-    ? past.map(renderTrip).join('')
-    : '<p style="color:var(--text2);font-size:13px;padding:8px 0;">No hay viajes anteriores.</p>';
+  activeEl.innerHTML = openTrips.length > 0
+    ? openTrips.map(renderTrip).join('')
+    : '<p style="color:var(--text2);font-size:13px;padding:8px 0;">No hay viajes activos. Todos están cerrados o no creaste ninguno todavía.</p>';
 }
 
 function selectTrip(id) {
@@ -1856,7 +1945,7 @@ async function createTripSheet(trip) {
               range: { sheetId: 0, startRowIndex: 1, startColumnIndex: 4, endColumnIndex: 6 },
               cell: {
                 userEnteredFormat: {
-                  numberFormat: { type: 'CURRENCY', pattern: '#,##0.00' },
+                  numberFormat: { type: 'CURRENCY', pattern: '$#,##0.00' },
                 },
               },
               fields: 'userEnteredFormat.numberFormat',
@@ -1963,7 +2052,7 @@ async function updateSheetTotalsRow(sheetId, expenseCount) {
               userEnteredFormat: {
                 backgroundColor: { red: 0.85, green: 0.88, blue: 0.95 },
                 textFormat: { bold: true },
-                numberFormat: { type: 'CURRENCY', pattern: '#,##0.00' },
+                numberFormat: { type: 'CURRENCY', pattern: '$#,##0.00' },
               },
             },
             fields: 'userEnteredFormat(backgroundColor,textFormat,numberFormat)',
@@ -2529,6 +2618,17 @@ function openTripDetail(tripId) {
   document.getElementById('detail-view-mode').style.display = 'block';
   document.getElementById('detail-edit-mode').style.display = 'none';
 
+  const isClosed = trip.status === 'closed';
+  const statusBadge = document.getElementById('detail-trip-status-badge');
+  if (isClosed) {
+    statusBadge.textContent = '🔒 Cerrado — no se pueden agregar gastos';
+    statusBadge.style.color = 'var(--text2)';
+    statusBadge.style.display = 'block';
+  } else {
+    statusBadge.style.display = 'none';
+  }
+  document.getElementById('btn-toggle-trip-status').textContent = isClosed ? '🔓 Reabrir viaje' : '🔒 Cerrar viaje';
+
   const isMobile = /Mobi|Android/i.test(navigator.userAgent);
   document.getElementById('btn-detail-drive').style.display = isMobile ? 'none' : 'inline-flex';
 
@@ -2603,15 +2703,6 @@ function renderTripDetailExpensesList(trip) {
   `).join('');
 }
 
-// Categorias que pueden abarcar un rango de fechas (entrada/salida) en vez de
-// una sola fecha puntual. Por ahora solo Hotel; en el futuro podria incluir
-// Vuelo (ida/vuelta) u otras.
-const RANGE_DATE_CATEGORIES = ['🏨 Hotel'];
-
-function isRangeDateCategory(category) {
-  return RANGE_DATE_CATEGORIES.includes(category);
-}
-
 function openExpenseDetail(expenseId) {
   const expense = state.expenses.find(e => e.id === expenseId);
   if (!expense) return;
@@ -2662,7 +2753,6 @@ function openExpenseDetail(expenseId) {
   document.getElementById('expense-detail-description').value = expense.description || '';
 
   renderExpenseDetailChips(expense.category);
-  updateExpenseDetailCheckoutFieldVisibility(expense.category);
 
   const photoEditEl = document.getElementById('expense-detail-photo');
   const removeBtn = document.getElementById('btn-remove-expense-photo');
@@ -2683,18 +2773,6 @@ function openExpenseDetail(expenseId) {
   showScreen('expense-detail');
 }
 
-function updateExpenseDetailCheckoutFieldVisibility(category) {
-  const field = document.getElementById('expense-detail-checkout-field');
-  const dateLabel = document.getElementById('expense-detail-date-label');
-  if (isRangeDateCategory(category)) {
-    field.style.display = 'block';
-    dateLabel.textContent = 'Fecha de entrada';
-  } else {
-    field.style.display = 'none';
-    dateLabel.textContent = 'Fecha';
-  }
-}
-
 function renderExpenseDetailChips(currentCategory) {
   const container = document.getElementById('expense-detail-chips');
   const active = state.categories.filter(c => c.active);
@@ -2710,7 +2788,6 @@ function selectExpenseDetailChip(el) {
   document.querySelectorAll('#expense-detail-chips .chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
   window._detailSelectedCategory = el.dataset.cat;
-  updateExpenseDetailCheckoutFieldVisibility(el.dataset.cat);
 }
 
 init();
